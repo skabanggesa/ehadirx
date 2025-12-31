@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistem Kehadiran Digital Versi 1.0</title>
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #002147; 
+            --secondary-color: #1a73e8; 
+            --bg-color: #f4f7fa;
+            --success-color: #28a745;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color); 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+        }
+
+        .container { 
+            width: 90%; 
+            max-width: 400px; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
+            text-align: center;
+        }
+
+        .logo { width: 100px; margin-bottom: 10px; }
+        
+        h1 { font-size: 1.2rem; color: var(--primary-color); margin: 0; font-weight: 700; }
+        p.version { font-size: 0.8rem; color: #666; margin-top: 5px; margin-bottom: 25px; }
+
+        .status-box { 
+            padding: 12px; border-radius: 12px; font-size: 0.85rem; 
+            font-weight: 600; margin-bottom: 20px; border: 1px solid #eee;
+        }
+        .warning { background: #fff3cd; color: #856404; }
+        .ready { background: #e8f0fe; color: var(--secondary-color); }
+
+        video { 
+            width: 100%; border-radius: 15px; background: #222; 
+            display: none; transform: scaleX(-1); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        input { 
+            width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #eee; 
+            border-radius: 12px; font-size: 1.2rem; text-align: center;
+            box-sizing: border-box; outline: none;
+        }
+
+        .btn-main { 
+            width: 100%; padding: 15px; background: var(--primary-color); 
+            color: white; border: none; border-radius: 12px; 
+            font-weight: bold; cursor: pointer; font-size: 1rem;
+        }
+
+        .success-overlay { 
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background: var(--success-color); color: white; 
+            display: none; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay" class="success-overlay">
+    <div style="font-size: 5rem;">✅</div>
+    <div id="overlayText" style="font-size: 1.5rem; font-weight: bold; text-align: center; padding: 20px;"></div>
+</div>
+
+<div class="container">
+    <img src="ehadir.png" alt="Logo" class="logo">
+    <h1>Sistem Kehadiran Digital</h1>
+    <p class="version">Versi 1.0</p>
+
+    <div id="status" class="status-box warning">Sila masukkan PIN untuk akses</div>
+
+    <div id="pinSection">
+        <input type="password" id="pinInput" placeholder="PIN 6-DIGIT" maxlength="6" inputmode="numeric">
+        <button class="btn-main" onclick="verifyPin()">AKTIFKAN KAMERA</button>
+    </div>
+
+    <video id="video" autoplay muted playsinline></video>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, serverTimestamp, GeoPoint } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
+        authDomain: "e-hadir-ba989.firebaseapp.com",
+        projectId: "e-hadir-ba989",
+        storageBucket: "e-hadir-ba989.firebasestorage.app",
+        messagingSenderId: "777207462690",
+        appId: "1:777207462690:web:0c65d249532428bea6437b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const SCHOOL_LOC = { lat: 5.9604992, lng: 116.1003008 }; 
+    const RADIUS = 150; 
+    const DAILY_PIN = "123456"; 
+    let registeredUsers = [];
+    let isProcessing = false;
+    const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+
+    // DAFTARKAN FUNGSI KE WINDOW
+    window.verifyPin = async function() {
+        const pinValue = document.getElementById('pinInput').value;
+        if(pinValue !== DAILY_PIN) {
+            alert("PIN Salah!");
+            return;
+        }
+
+        document.getElementById('pinSection').style.display = "none";
+        document.getElementById('status').innerText = "Memuatkan Model AI...";
+        document.getElementById('status').className = "status-box ready";
+
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
+            
+            const snap = await getDocs(collection(db, "users"));
+            registeredUsers = [];
+            snap.forEach(doc => registeredUsers.push(doc.data()));
+            
+            startCamera();
+        } catch (err) {
+            alert("Gagal muat model. Pastikan folder 'models' betul.");
+            console.error(err);
+        }
+    };
+
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ 
+            video: { width: 640, height: 480, facingMode: "user" } 
+        })
+        .then(stream => {
+            const video = document.getElementById('video');
+            video.srcObject = stream;
+            video.style.display = "block";
+            checkLocation();
+            setInterval(scan, 1000); 
+        })
+        .catch(err => alert("Kamera tidak dapat diakses."));
+    }
+
+    async function scan() {
+        if(isProcessing) return;
+        const video = document.getElementById('video');
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        
+        if (detection) {
+            for (let user of registeredUsers) {
+                const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.descriptor));
+                if (dist < 0.45) {
+                    isProcessing = true;
+                    beep.play();
+                    saveAttendance(user.name);
+                    break;
+                }
+            }
+        }
+    }
+
+    async function saveAttendance(name) {
+        const now = new Date();
+        const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
+        
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            await addDoc(collection(db, "attendance"), {
+                name: name,
+                timestamp: serverTimestamp(),
+                status: status,
+                location: new GeoPoint(pos.coords.latitude, pos.coords.longitude)
+            });
+
+            document.getElementById('overlayText').innerHTML = `TERIMA KASIH<br>${name}<br><br>STATUS: ${status}`;
+            document.getElementById('overlay').style.display = "flex";
+            setTimeout(() => {
+                document.getElementById('overlay').style.display = "none";
+                isProcessing = false;
+            }, 4000);
+        });
+    }
+
+    function checkLocation() {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const R = 6371e3;
+            const dLat = (SCHOOL_LOC.lat - pos.coords.latitude) * Math.PI/180;
+            const dLon = (SCHOOL_LOC.lng - pos.coords.longitude) * Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(pos.coords.latitude*Math.PI/180)*Math.cos(SCHOOL_LOC.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+            const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
+            const box = document.getElementById('status');
+            if(d <= RADIUS) {
+                box.innerText = "✅ Lokasi Sekolah Disahkan";
+                box.className = "status-box ready";
+            } else {
+                box.innerText = `Luar Kawasan (${Math.round(d)}m)`;
+                box.className = "status-box warning";
+            }
+        }, null, { enableHighAccuracy: true });
+    }
+</script>
+</body>
+</html>
