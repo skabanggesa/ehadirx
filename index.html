@@ -13,70 +13,48 @@
             --secondary-color: #1a73e8; 
             --bg-color: #f4f7fa;
             --success-color: #28a745;
+            --warning-color: #ffc107; /* Warna Kuning Amaran */
         }
 
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color); 
-            margin: 0; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            min-height: 100vh;
+            margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
         }
 
         .container { 
-            width: 90%; 
-            max-width: 400px; 
-            background: white; 
-            padding: 30px; 
-            border-radius: 20px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
-            text-align: center;
+            width: 90%; max-width: 400px; background: white; padding: 30px; 
+            border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); text-align: center;
         }
 
         .logo { width: 100px; margin-bottom: 10px; }
-        
         h1 { font-size: 1.2rem; color: var(--primary-color); margin: 0; font-weight: 700; }
         p.version { font-size: 0.8rem; color: #666; margin-top: 5px; margin-bottom: 25px; }
 
-        .status-box { 
-            padding: 12px; border-radius: 12px; font-size: 0.85rem; 
-            font-weight: 600; margin-bottom: 20px; border: 1px solid #eee;
-        }
+        .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; border: 1px solid #eee; }
         .warning { background: #fff3cd; color: #856404; }
         .ready { background: #e8f0fe; color: var(--secondary-color); }
 
-        video { 
-            width: 100%; border-radius: 15px; background: #222; 
-            display: none; transform: scaleX(-1); 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
+        video { width: 100%; border-radius: 15px; background: #222; display: none; transform: scaleX(-1); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
 
-        input { 
-            width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #eee; 
-            border-radius: 12px; font-size: 1.2rem; text-align: center;
-            box-sizing: border-box; outline: none;
-        }
+        input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #eee; border-radius: 12px; font-size: 1.2rem; text-align: center; box-sizing: border-box; }
 
-        .btn-main { 
-            width: 100%; padding: 15px; background: var(--primary-color); 
-            color: white; border: none; border-radius: 12px; 
-            font-weight: bold; cursor: pointer; font-size: 1rem;
-        }
+        .btn-main { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
 
-        .success-overlay { 
+        /* Overlay Berjaya & Amaran */
+        .overlay { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-            background: var(--success-color); color: white; 
-            display: none; flex-direction: column; 
+            color: white; display: none; flex-direction: column; 
             justify-content: center; align-items: center; z-index: 100;
         }
+        .bg-success { background: var(--success-color); }
+        .bg-warning { background: var(--warning-color); color: #856404; }
     </style>
 </head>
 <body>
 
-<div id="overlay" class="success-overlay">
-    <div style="font-size: 5rem;">✅</div>
+<div id="overlay" class="overlay">
+    <div id="overlayIcon" style="font-size: 5rem;">✅</div>
     <div id="overlayText" style="font-size: 1.5rem; font-weight: bold; text-align: center; padding: 20px;"></div>
 </div>
 
@@ -114,21 +92,16 @@
     const SCHOOL_LOC = { lat: 5.9604992, lng: 116.1003008 }; 
     const RADIUS = 150; 
     const DAILY_PIN = "123456"; 
+    
     let registeredUsers = [];
+    let alreadyScanned = []; // Memori untuk hari ini
     let isProcessing = false;
-    const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
-
-    // DAFTARKAN FUNGSI KE WINDOW
+const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
     window.verifyPin = async function() {
-        const pinValue = document.getElementById('pinInput').value;
-        if(pinValue !== DAILY_PIN) {
-            alert("PIN Salah!");
-            return;
-        }
+        if(document.getElementById('pinInput').value !== DAILY_PIN) return alert("PIN Salah!");
 
         document.getElementById('pinSection').style.display = "none";
         document.getElementById('status').innerText = "Memuatkan Model AI...";
-        document.getElementById('status').className = "status-box ready";
 
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri('models');
@@ -136,28 +109,21 @@
             await faceapi.nets.faceRecognitionNet.loadFromUri('models');
             
             const snap = await getDocs(collection(db, "users"));
-            registeredUsers = [];
             snap.forEach(doc => registeredUsers.push(doc.data()));
             
             startCamera();
-        } catch (err) {
-            alert("Gagal muat model. Pastikan folder 'models' betul.");
-            console.error(err);
-        }
+        } catch (err) { alert("Gagal muat model."); }
     };
 
     function startCamera() {
-        navigator.mediaDevices.getUserMedia({ 
-            video: { width: 640, height: 480, facingMode: "user" } 
-        })
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
         .then(stream => {
             const video = document.getElementById('video');
             video.srcObject = stream;
             video.style.display = "block";
             checkLocation();
             setInterval(scan, 1000); 
-        })
-        .catch(err => alert("Kamera tidak dapat diakses."));
+        });
     }
 
     async function scan() {
@@ -168,7 +134,14 @@
         if (detection) {
             for (let user of registeredUsers) {
                 const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.descriptor));
+                
                 if (dist < 0.45) {
+                    // JIKA SUDAH DIIMBAS
+                    if (alreadyScanned.includes(user.name)) {
+                        showWarning(user.name);
+                        return;
+                    }
+
                     isProcessing = true;
                     beep.play();
                     saveAttendance(user.name);
@@ -176,6 +149,21 @@
                 }
             }
         }
+    }
+
+    // FUNGSI BARU: Papar Amaran Sudah Rekod
+    function showWarning(name) {
+        isProcessing = true;
+        const overlay = document.getElementById('overlay');
+        overlay.className = "overlay bg-warning";
+        document.getElementById('overlayIcon').innerText = "⚠️";
+        document.getElementById('overlayText').innerHTML = `KEHADIRAN TELAH DIREKOD<br><span style="font-size:1.1rem">${name} sudah mengimbas wajah hari ini.</span>`;
+        overlay.style.display = "flex";
+
+        setTimeout(() => {
+            overlay.style.display = "none";
+            isProcessing = false;
+        }, 3000);
     }
 
     async function saveAttendance(name) {
@@ -190,10 +178,15 @@
                 location: new GeoPoint(pos.coords.latitude, pos.coords.longitude)
             });
 
+            alreadyScanned.push(name);
+            const overlay = document.getElementById('overlay');
+            overlay.className = "overlay bg-success";
+            document.getElementById('overlayIcon').innerText = "✅";
             document.getElementById('overlayText').innerHTML = `TERIMA KASIH<br>${name}<br><br>STATUS: ${status}`;
-            document.getElementById('overlay').style.display = "flex";
+            overlay.style.display = "flex";
+            
             setTimeout(() => {
-                document.getElementById('overlay').style.display = "none";
+                overlay.style.display = "none";
                 isProcessing = false;
             }, 4000);
         });
@@ -206,15 +199,9 @@
             const dLon = (SCHOOL_LOC.lng - pos.coords.longitude) * Math.PI/180;
             const a = Math.sin(dLat/2)**2 + Math.cos(pos.coords.latitude*Math.PI/180)*Math.cos(SCHOOL_LOC.lat*Math.PI/180)*Math.sin(dLon/2)**2;
             const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            
             const box = document.getElementById('status');
-            if(d <= RADIUS) {
-                box.innerText = "✅ Lokasi Sekolah Disahkan";
-                box.className = "status-box ready";
-            } else {
-                box.innerText = `Luar Kawasan (${Math.round(d)}m)`;
-                box.className = "status-box warning";
-            }
+            if(d <= RADIUS) { box.innerText = "✅ Lokasi Sekolah Disahkan"; box.className = "status-box ready"; }
+            else { box.innerText = `Luar Kawasan (${Math.round(d)}m)`; box.className = "status-box warning"; }
         }, null, { enableHighAccuracy: true });
     }
 </script>
