@@ -14,6 +14,7 @@
             --accent: #1a73e8;
             --bg: #f0f2f5;
             --white: #ffffff;
+            --danger: #dc3545;
         }
 
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -48,7 +49,6 @@
 
         h2 { color: var(--primary); font-size: 1rem; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
 
-        /* Dioptimumkan untuk Telefon */
         video { 
             width: 100%; border-radius: 12px; background: #000; 
             margin-bottom: 15px; transform: scaleX(-1); 
@@ -62,6 +62,7 @@
         .btn-save { background: var(--accent); color: white; }
         .btn-excel { background: #217346; color: white; margin-bottom: 15px; }
         .btn-logout { background: #f8d7da; color: #721c24; width: auto; padding: 8px 15px; font-size: 0.8rem; }
+        .btn-danger { background: var(--danger); color: white; padding: 5px 10px; font-size: 0.7rem; width: auto; }
 
         table { width: 100%; border-collapse: collapse; }
         th { background: #f8f9fa; color: #555; text-align: left; padding: 10px; font-size: 0.75rem; }
@@ -69,9 +70,10 @@
 
         .status-tag { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; }
         .tag-hadir { background: #d4edda; color: #155724; }
-        .tag-lewat { background: #f8d7da; color: #721c24; }
+        .tag-lewat { background: #fff3cd; color: #856404; }
+        .tag-tidak { background: #f8d7da; color: #721c24; }
 
-        @media (min-width: 900px) { .grid { grid-template-columns: 1fr 2fr; } }
+        @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } .full-width { grid-column: span 2; } }
     </style>
 </head>
 <body>
@@ -88,9 +90,7 @@
     <div class="header">
         <div style="display: flex; align-items: center; gap: 10px;">
             <img src="ehadir.png" alt="Logo">
-            <div>
-                <div style="font-weight: 800; color: var(--primary); font-size: 0.8rem;">ADMIN PANEL</div>
-            </div>
+            <div style="font-weight: 800; color: var(--primary); font-size: 0.8rem;">ADMIN PANEL</div>
         </div>
         <button class="btn btn-logout" onclick="handleLogout()">LOG KELUAR</button>
     </div>
@@ -104,8 +104,22 @@
         </div>
 
         <div class="card">
+            <h2>Urus Staf</h2>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr><th>NAMA GURU</th><th>TINDAKAN</th></tr>
+                    </thead>
+                    <tbody id="staffTableBody">
+                        <tr><td colspan="2">Memuatkan senarai staf...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card full-width">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h2 style="border:none; margin:0;">Kehadiran Hari Ini</h2>
+                <h2 style="border:none; margin:0;">Laporan Kehadiran Keseluruhan (Hari Ini)</h2>
                 <button onclick="exportExcel()" class="btn btn-excel" style="width:auto; padding:8px 15px;">📊 EXCEL</button>
             </div>
             <div style="overflow-x: auto;">
@@ -124,7 +138,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     // Firebase Config
@@ -164,7 +178,7 @@
 
     window.handleLogout = () => signOut(auth);
 
-    // Logik Dashboard
+    // --- LOGIK UTAMA ---
     async function initAdminLogic() {
         try {
             // Muat Model AI
@@ -172,72 +186,104 @@
             await faceapi.nets.faceLandmark68Net.loadFromUri('models');
             await faceapi.nets.faceRecognitionNet.loadFromUri('models');
             
-            // Akses Kamera Khusus Telefon Pintar
-            const constraints = { 
-                video: { 
-                    facingMode: "user", // Paksa kamera depan
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                } 
-            };
-
+            const constraints = { video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } };
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            const video = document.getElementById('adminVideo');
-            video.srcObject = stream;
+            document.getElementById('adminVideo').srcObject = stream;
             
-        } catch (err) { 
-            console.error("Kamera Gagal:", err);
-            alert("Ralat Kamera: Sila pastikan anda menggunakan HTTPS dan memberi izin kamera.");
-        }
+        } catch (err) { alert("Ralat Kamera/Model: Sila gunakan HTTPS."); }
 
-        // Real-time Update
-        const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-        onSnapshot(q, (snap) => {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = "";
-            const today = new Date().toLocaleDateString('en-CA');
+        // 1. Dapatkan Senarai Semua Staf (Koleksi users)
+        onSnapshot(collection(db, "users"), (userSnap) => {
+            const allUsers = [];
+            const staffTbody = document.getElementById('staffTableBody');
+            staffTbody.innerHTML = "";
 
-            snap.forEach(dDoc => {
-                const data = dDoc.data();
-                const ts = data.timestamp?.toDate();
-                if (ts && ts.toLocaleDateString('en-CA') === today) {
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><strong>${data.name}</strong></td>
-                            <td>${ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-                            <td><span class="status-tag ${data.status === 'Hadir' ? 'tag-hadir' : 'tag-lewat'}">${data.status}</span></td>
-                            <td><button onclick="deleteRec('${dDoc.id}')" style="background:none;border:none;color:red;font-size:12px;cursor:pointer;">PADAM</button></td>
-                        </tr>`;
-                }
+            userSnap.forEach(uDoc => {
+                const userData = uDoc.data();
+                allUsers.push({ id: uDoc.id, name: userData.name });
+                
+                // Isi Jadual Urus Staf
+                staffTbody.innerHTML += `
+                    <tr>
+                        <td>${userData.name}</td>
+                        <td><button class="btn btn-danger" onclick="deleteUser('${uDoc.id}', '${userData.name}')">PADAM</button></td>
+                    </tr>`;
             });
-            if(tbody.innerHTML === "") tbody.innerHTML = "<tr><td colspan='4' style='text-align:center'>Tiada rekod hari ini</td></tr>";
+
+            // 2. Dapatkan Kehadiran Real-time dan Bandingkan
+            const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (attSnap) => {
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = "";
+                const today = new Date().toLocaleDateString('en-CA');
+                
+                const presentNames = {}; // Simpan nama yang sudah hadir hari ini
+
+                attSnap.forEach(aDoc => {
+                    const data = aDoc.data();
+                    const ts = data.timestamp?.toDate();
+                    if (ts && ts.toLocaleDateString('en-CA') === today) {
+                        presentNames[data.name] = {
+                            time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                            status: data.status,
+                            id: aDoc.id
+                        };
+                    }
+                });
+
+                // Gabungkan Senarai: Tunjuk yang hadir dan yang belum hadir
+                allUsers.forEach(user => {
+                    if (presentNames[user.name]) {
+                        // Jika hadir
+                        const info = presentNames[user.name];
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><strong>${user.name}</strong></td>
+                                <td>${info.time}</td>
+                                <td><span class="status-tag ${info.status === 'Hadir' ? 'tag-hadir' : 'tag-lewat'}">${info.status}</span></td>
+                                <td><button onclick="deleteRec('${info.id}')" style="background:none;border:none;color:red;font-size:10px;cursor:pointer;">PADAM REKOD</button></td>
+                            </tr>`;
+                    } else {
+                        // Jika tidak hadir
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${user.name}</td>
+                                <td>--:--</td>
+                                <td><span class="status-tag tag-tidak">Tidak Hadir</span></td>
+                                <td>-</td>
+                            </tr>`;
+                    }
+                });
+            });
         });
     }
 
-    // Daftar Wajah
+    // --- FUNGSI DAFTAR ---
     window.register = async () => {
         const name = document.getElementById('staffName').value;
         if(!name) return alert("Sila isi nama!");
 
-        const detection = await faceapi.detectSingleFace(
-            document.getElementById('adminVideo'), 
-            new faceapi.TinyFaceDetectorOptions()
-        ).withFaceLandmarks().withFaceDescriptor();
+        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         
         if (detection) {
-            await addDoc(collection(db, "users"), {
-                name: name,
-                descriptor: Array.from(detection.descriptor)
-            });
+            await addDoc(collection(db, "users"), { name: name, descriptor: Array.from(detection.descriptor) });
             beep.play(); 
             alert("Berjaya mendaftar " + name);
             document.getElementById('staffName').value = "";
-        } else { alert("Wajah tidak dikesan, sila cuba lagi."); }
+        } else { alert("Wajah tidak dikesan."); }
     };
 
-    // Utiliti
+    // --- FUNGSI URUS STAF (BARU) ---
+    window.deleteUser = async (id, name) => {
+        if(confirm(`Adakah anda pasti mahu memadam profil ${name}? Guru ini tidak akan dapat mengimbas wajah lagi.`)) {
+            await deleteDoc(doc(db, "users", id));
+            alert("Profil guru dipadam.");
+        }
+    };
+
+    // --- UTILITI ---
     window.deleteRec = async (id) => {
-        if(confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id));
+        if(confirm("Padam rekod kehadiran ini?")) await deleteDoc(doc(db, "attendance", id));
     };
 
     window.exportExcel = () => {
