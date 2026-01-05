@@ -68,7 +68,11 @@
         .tag-lewat { background: #fff3cd; color: #856404; }
         .tag-tidak { background: #f8d7da; color: #721c24; }
 
-        #lockedOverlay { text-align: center; padding: 40px 10px; }
+        /* Style untuk bahagian terkunci */
+        #lockedOverlay {
+            text-align: center;
+            padding: 40px 10px;
+        }
 
         @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } .full-width { grid-column: span 2; } }
     </style>
@@ -102,11 +106,13 @@
 
         <div class="card" id="staffManagementCard">
             <h2>Urus Staf & Hadir Manual</h2>
+            
             <div id="lockedOverlay">
                 <div style="font-size: 3rem;">🔒</div>
                 <p style="color:#666; font-size: 0.9rem;">Bahagian ini dilindungi.<br>Hanya untuk kegunaan Pentadbir.</p>
                 <button onclick="unlockManagement()" class="btn btn-unlock" style="width:auto; padding: 10px 20px;">BUKA AKSES</button>
             </div>
+
             <div id="unlockedContent" style="display:none;">
                 <div style="max-height: 400px; overflow-y: auto;">
                     <table>
@@ -131,7 +137,7 @@
                         <tr><th>GURU</th><th>WAKTU</th><th>STATUS</th><th>TINDAKAN</th></tr>
                     </thead>
                     <tbody id="tableBody">
-                        <tr><td colspan="4" style="text-align:center;">Menunggu data...</td></tr>
+                        <tr><td colspan="4" style="text-align:center;">Memuatkan data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -141,7 +147,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, Timestamp, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -158,177 +164,11 @@
     const auth = getAuth(app);
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-    const ADMIN_ACCESS_CODE = "1234"; 
+    // --- TETAPAN KOD AKSES ---
+    const ADMIN_ACCESS_CODE = "1234"; // SILA TUKAR KOD INI
 
-    // Variabel Global Data
-    let allUsers = [];
-    let todayAttendance = [];
-
-    // --- SISTEM LOGIN ---
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('adminContent').style.display = 'block';
-            startAdminListeners(); 
-        } else {
-            document.getElementById('loginSection').style.display = 'block';
-            document.getElementById('adminContent').style.display = 'none';
-        }
-    });
-
-    window.handleLogin = async () => {
-        const email = document.getElementById('loginEmail').value;
-        const pass = document.getElementById('loginPass').value;
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-        } catch (e) { alert("Emel atau Kata Laluan Salah!"); }
-    };
-
-    window.handleLogout = () => signOut(auth);
-
-    // --- REALTIME LISTENERS ---
-    async function startAdminListeners() {
-        // 1. Muat Model AI & Kamera
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-            document.getElementById('adminVideo').srcObject = stream;
-        } catch (err) { console.log("Kamera tidak aktif atau model gagal dimuat."); }
-
-        // 2. Listener Senarai Staf
-        onSnapshot(collection(db, "users"), (snapshot) => {
-            allUsers = [];
-            const staffTbody = document.getElementById('staffTableBody');
-            staffTbody.innerHTML = "";
-
-            snapshot.forEach(uDoc => {
-                const userData = uDoc.data();
-                allUsers.push({ id: uDoc.id, name: userData.name });
-                staffTbody.innerHTML += `
-                    <tr>
-                        <td><strong>${userData.name}</strong></td>
-                        <td style="display:flex; gap:5px;">
-                            <button class="btn btn-manual" onclick="markAttendanceManual('${userData.name}')">HADIR</button>
-                            <button class="btn btn-danger" onclick="deleteUser('${uDoc.id}', '${userData.name}')">PADAM</button>
-                        </td>
-                    </tr>`;
-            });
-            renderAttendanceTable(); // Kemaskini jadual laporan
-        });
-
-        // 3. Listener Kehadiran Hari Ini
-        const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-        onSnapshot(q, (snapshot) => {
-            todayAttendance = [];
-            const todayStr = new Date().toLocaleDateString('en-CA');
-
-            snapshot.forEach(aDoc => {
-                const data = aDoc.data();
-                const ts = data.timestamp?.toDate();
-                // Hanya ambil data hari ini
-                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
-                    todayAttendance.push({ id: aDoc.id, ...data, dateObj: ts });
-                }
-            });
-            renderAttendanceTable(); // Kemaskini jadual laporan
-        });
-    }
-
-    // --- FUNGSI GABUNG DATA & PAPAR ---
-    function renderAttendanceTable() {
-        const tbody = document.getElementById('tableBody');
-        if (!tbody) return;
-        tbody.innerHTML = "";
-
-        // Susun data mengikut nama untuk memudahkan carian
-        const recordMap = {};
-        todayAttendance.forEach(rec => {
-            recordMap[rec.name] = rec;
-        });
-
-        allUsers.forEach(user => {
-            const hasRecord = recordMap[user.name];
-            if (hasRecord) {
-                const timeStr = hasRecord.dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${user.name}</strong></td>
-                        <td>${timeStr}</td>
-                        <td><span class="status-tag ${hasRecord.status === 'Hadir' ? 'tag-hadir' : 'tag-lewat'}">${hasRecord.status}</span></td>
-                        <td><button onclick="secureDeleteRec('${hasRecord.id}')" style="background:none;border:none;color:red;font-size:14px;cursor:pointer;">🗑️</button></td>
-                    </tr>`;
-            } else {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${user.name}</td>
-                        <td>--:--</td>
-                        <td><span class="status-tag tag-tidak">Tidak Hadir</span></td>
-                        <td>-</td>
-                    </tr>`;
-            }
-        });
-    }
-
-    // --- FUNGSI TINDAKAN (ACTIONS) ---
-    window.register = async () => {
-        const nameInput = document.getElementById('staffName');
-        const name = nameInput.value.trim();
-        if(!name) return alert("Sila masukkan nama!");
-
-        const video = document.getElementById('adminVideo');
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        
-        if (detection) {
-            await addDoc(collection(db, "users"), { 
-                name: name, 
-                descriptor: Array.from(detection.descriptor) 
-            });
-            beep.play(); 
-            alert("Identiti wajah " + name + " berjaya disimpan.");
-            nameInput.value = "";
-        } else { 
-            alert("Wajah tidak dikesan. Sila pastikan pencahayaan cukup."); 
-        }
-    };
-
-    window.markAttendanceManual = async (name) => {
-        if(confirm(`Tanda kehadiran manual untuk ${name}?`)) {
-            try {
-                await addDoc(collection(db, "attendance"), { 
-                    name: name, 
-                    timestamp: serverTimestamp(), 
-                    status: "Hadir" 
-                });
-            } catch (e) { alert("Ralat menyimpan data."); }
-        }
-    };
-
-    window.deleteUser = async (id, name) => {
-        if(confirm(`Adakah anda pasti mahu memadam profil ${name}? Rekod wajah akan hilang.`)) {
-            await deleteDoc(doc(db, "users", id));
-        }
-    };
-
-    window.secureDeleteRec = async (id) => {
-        const code = prompt("Masukkan Kod Akses Pentadbir untuk padam rekod:");
-        if (code === ADMIN_ACCESS_CODE) {
-            await deleteDoc(doc(db, "attendance", id));
-        } else if (code !== null) {
-            alert("Kod salah!");
-        }
-    };
-
-    window.exportExcel = () => {
-        const table = document.getElementById("reportTable");
-        const wb = XLSX.utils.table_to_book(table);
-        XLSX.writeFile(wb, `Laporan_Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
-    };
-
-    // --- UI LOCK/UNLOCK ---
     window.unlockManagement = () => {
-        const code = prompt("Masukkan kod akses:");
+        const code = prompt("Sila masukkan kod akses pentadbir:");
         if (code === ADMIN_ACCESS_CODE) {
             document.getElementById('lockedOverlay').style.display = 'none';
             document.getElementById('unlockedContent').style.display = 'block';
@@ -342,6 +182,134 @@
         document.getElementById('unlockedContent').style.display = 'none';
     };
 
+    // --- LOGIK FIREBASE & UI ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('adminContent').style.display = 'block';
+            initAdminLogic(); 
+        } else {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('adminContent').style.display = 'none';
+        }
+    });
+
+    window.handleLogin = async () => {
+        try {
+            await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
+        } catch (e) { alert("Akses Ditolak!"); }
+    };
+
+    window.handleLogout = () => signOut(auth);
+
+    async function initAdminLogic() {
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            document.getElementById('adminVideo').srcObject = stream;
+        } catch (err) { console.log("Kamera tidak aktif."); }
+
+        // Load Staf
+        onSnapshot(collection(db, "users"), (userSnap) => {
+            const allUsers = [];
+            const staffTbody = document.getElementById('staffTableBody');
+            staffTbody.innerHTML = "";
+
+            userSnap.forEach(uDoc => {
+                const userData = uDoc.data();
+                allUsers.push({ id: uDoc.id, name: userData.name });
+                staffTbody.innerHTML += `
+                    <tr>
+                        <td><strong>${userData.name}</strong></td>
+                        <td style="display:flex; gap:5px;">
+                            <button class="btn btn-manual" onclick="markAttendanceManual('${userData.name}')">HADIR</button>
+                            <button class="btn btn-danger" onclick="deleteUser('${uDoc.id}', '${userData.name}')">PADAM</button>
+                        </td>
+                    </tr>`;
+            });
+
+            // Load Laporan
+            const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (attSnap) => {
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = "";
+                const today = new Date().toLocaleDateString('en-CA');
+                const presentNames = {};
+
+                attSnap.forEach(aDoc => {
+                    const data = aDoc.data();
+                    const ts = data.timestamp?.toDate();
+                    if (ts && ts.toLocaleDateString('en-CA') === today) {
+                        presentNames[data.name] = {
+                            time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                            status: data.status,
+                            id: aDoc.id
+                        };
+                    }
+                });
+
+                allUsers.forEach(user => {
+                    if (presentNames[user.name]) {
+                        const info = presentNames[user.name];
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><strong>${user.name}</strong></td>
+                                <td>${info.time}</td>
+                                <td><span class="status-tag ${info.status === 'Hadir' ? 'tag-hadir' : 'tag-lewat'}">${info.status}</span></td>
+                                <td><button onclick="secureDeleteRec('${info.id}')" style="background:none;border:none;color:red;font-size:10px;cursor:pointer;">PADAM</button></td>
+                            </tr>`;
+                    } else {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${user.name}</td>
+                                <td>--:--</td>
+                                <td><span class="status-tag tag-tidak">Tidak Hadir</span></td>
+                                <td>-</td>
+                            </tr>`;
+                    }
+                });
+            });
+        });
+    }
+
+    // --- FUNGSI PROTECTED ---
+    window.markAttendanceManual = async (name) => {
+        try {
+            await addDoc(collection(db, "attendance"), { name: name, timestamp: Timestamp.now(), status: "Hadir" });
+            alert(`Kehadiran ${name} direkod.`);
+        } catch (e) { alert("Ralat."); }
+    };
+
+    window.deleteUser = async (id, name) => {
+        if(confirm(`Padam profil ${name}?`)) await deleteDoc(doc(db, "users", id));
+    };
+
+    window.secureDeleteRec = async (id) => {
+        const code = prompt("Masukkan Kod Akses untuk memadam rekod kehadiran:");
+        if (code === ADMIN_ACCESS_CODE) {
+            await deleteDoc(doc(db, "attendance", id));
+        } else if (code !== null) {
+            alert("Kod salah!");
+        }
+    };
+
+    window.register = async () => {
+        const name = document.getElementById('staffName').value;
+        if(!name) return alert("Isi nama!");
+        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (detection) {
+            await addDoc(collection(db, "users"), { name: name, descriptor: Array.from(detection.descriptor) });
+            beep.play(); 
+            alert("Berjaya.");
+            document.getElementById('staffName').value = "";
+        } else { alert("Wajah tidak dikesan."); }
+    };
+
+    window.exportExcel = () => {
+        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `Laporan_${new Date().toLocaleDateString()}.xlsx`);
+    };
 </script>
 </body>
 </html>
