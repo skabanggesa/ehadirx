@@ -13,7 +13,7 @@
             --secondary-color: #1a73e8; 
             --bg-color: #f4f7fa;
             --success-color: #28a745;
-            --warning-color: #ffc107; /* Warna Kuning Amaran */
+            --warning-color: #ffc107;
         }
 
         body { 
@@ -41,7 +41,6 @@
 
         .btn-main { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
 
-        /* Overlay Berjaya & Amaran */
         .overlay { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
             color: white; display: none; flex-direction: column; 
@@ -75,7 +74,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, serverTimestamp, GeoPoint } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, serverTimestamp, GeoPoint } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
@@ -94,9 +93,10 @@
     const DAILY_PIN = "123456"; 
     
     let registeredUsers = [];
-    let alreadyScanned = []; // Memori untuk hari ini
+    let alreadyScanned = []; 
     let isProcessing = false;
-const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
     window.verifyPin = async function() {
         if(document.getElementById('pinInput').value !== DAILY_PIN) return alert("PIN Salah!");
 
@@ -111,9 +111,30 @@ const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-pr
             const snap = await getDocs(collection(db, "users"));
             snap.forEach(doc => registeredUsers.push(doc.data()));
             
+            // Aktifkan sinkronisasi real-time untuk data kehadiran hari ini
+            syncAlreadyScanned();
             startCamera();
         } catch (err) { alert("Gagal muat model."); }
     };
+
+    // FUNGSI BARU: Real-time sync dengan Firestore
+    function syncAlreadyScanned() {
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const q = query(collection(db, "attendance"));
+        
+        onSnapshot(q, (snapshot) => {
+            alreadyScanned = []; // Reset senarai lokal
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const ts = data.timestamp?.toDate();
+                // Semak jika data adalah untuk hari ini sahaja
+                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
+                    alreadyScanned.push(data.name);
+                }
+            });
+            console.log("Senarai imbasan dikemaskini:", alreadyScanned);
+        });
+    }
 
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
@@ -136,7 +157,6 @@ const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-pr
                 const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.descriptor));
                 
                 if (dist < 0.45) {
-                    // JIKA SUDAH DIIMBAS
                     if (alreadyScanned.includes(user.name)) {
                         showWarning(user.name);
                         return;
@@ -151,7 +171,6 @@ const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-pr
         }
     }
 
-    // FUNGSI BARU: Papar Amaran Sudah Rekod
     function showWarning(name) {
         isProcessing = true;
         const overlay = document.getElementById('overlay');
@@ -178,7 +197,7 @@ const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-pr
                 location: new GeoPoint(pos.coords.latitude, pos.coords.longitude)
             });
 
-            alreadyScanned.push(name);
+            // Nota: alreadyScanned akan dikemaskini secara automatik oleh onSnapshot
             const overlay = document.getElementById('overlay');
             overlay.className = "overlay bg-success";
             document.getElementById('overlayIcon').innerText = "✅";
