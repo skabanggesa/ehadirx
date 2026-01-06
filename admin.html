@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pentadbir | Sistem Kehadiran</title>
+    <title>Pentadbir | Sistem Kehadiran V1.0</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #1e293b;
+            --primary: #0f172a;
             --accent: #2563eb;
             --danger: #ef4444;
             --success: #10b981;
-            --bg: #f1f5f9;
+            --bg: #f8fafc;
         }
 
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: var(--primary); }
@@ -42,26 +42,28 @@
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
 
-        h2 { font-size: 1.1rem; margin-top: 0; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px; }
+        h2 { font-size: 0.9rem; margin-top: 0; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; font-weight: 800; }
 
         video { width: 100%; border-radius: 16px; background: #000; transform: scaleX(-1); }
 
-        .btn { padding: 12px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
         .btn-save { background: var(--accent); color: white; width: 100%; margin-top: 15px; }
-        .btn-excel { background: var(--success); color: white; }
+        .btn-excel { background: var(--primary); color: white; }
         .btn-logout { background: #fee2e2; color: var(--danger); }
+        .btn-manual { background: #dcfce7; color: #166534; padding: 6px 12px; font-size: 0.75rem; }
+        .btn-del-user { background: #fff1f2; color: #be123c; padding: 6px 12px; font-size: 0.75rem; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.8rem; border-bottom: 2px solid #f1f5f9; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.75rem; border-bottom: 2px solid #f1f5f9; text-transform: uppercase; }
         td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
 
         .status-tag { padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
         .tag-hadir { background: #d1fae5; color: #065f46; }
-        .tag-tidak { background: #fee2e2; color: #991b1b; }
+        .tag-tidak { background: #f1f5f9; color: #64748b; }
 
         @media (min-width: 1024px) { 
-            .main-container { grid-template-columns: 350px 1fr; }
-            .full-width { grid-column: span 2; }
+            .main-container { grid-template-columns: 380px 1fr; }
         }
     </style>
 </head>
@@ -77,27 +79,43 @@
 
 <div id="adminContent" style="display:none;">
     <div class="header">
-        <div style="font-weight: 800; font-size: 1.2rem;">PANTU KEHADIRAN</div>
-        <button class="btn btn-logout" onclick="handleLogout()">KELUAR</button>
+        <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px;">E-HADIR ADMIN</div>
+        <button class="btn btn-logout" onclick="handleLogout()">LOG KELUAR</button>
     </div>
 
     <div class="main-container">
-        <div class="card">
-            <h2>Daftar Staf Baru</h2>
-            <video id="adminVideo" autoplay muted playsinline></video>
-            <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:15px;">
-            <button onclick="register()" class="btn btn-save">SIMPAN WAJAH</button>
+        <div style="display: flex; flex-direction: column; gap: 25px;">
+            <div class="card">
+                <h2>Daftar Wajah Baru</h2>
+                <video id="adminVideo" autoplay muted playsinline></video>
+                <input type="text" id="staffName" placeholder="Nama Penuh Guru" class="login-input" style="margin-top:15px;">
+                <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
+            </div>
+
+            <div class="card">
+                <h2>Senarai Staf & Manual</h2>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table style="width: 100%;">
+                        <tbody id="staffListBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin:0;">Laporan Hari Ini</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h2 style="margin:0;">Laporan Kehadiran Hari Ini</h2>
                 <button onclick="exportExcel()" class="btn btn-excel">MUAT TURUN EXCEL</button>
             </div>
             <div style="overflow-x: auto;">
                 <table id="reportTable">
                     <thead>
-                        <tr><th>NAMA GURU</th><th>WAKTU KEMASKINI</th><th>STATUS</th><th>TINDAKAN</th></tr>
+                        <tr>
+                            <th>Guru / Kakitangan</th>
+                            <th>Masa</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
                     </thead>
                     <tbody id="tableBody"></tbody>
                 </table>
@@ -108,7 +126,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDocs, where, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -124,6 +142,7 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
+    // AUTH CHECK
     onAuthStateChanged(auth, (user) => {
         if (user) {
             document.getElementById('loginSection').style.display = 'none';
@@ -138,11 +157,12 @@
     window.handleLogin = async () => {
         try {
             await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
-        } catch (e) { alert("Gagal!"); }
+        } catch (e) { alert("Gagal Log Masuk!"); }
     };
 
     window.handleLogout = () => signOut(auth);
 
+    // CORE LOGIC
     async function initAdmin() {
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri('models');
@@ -150,13 +170,29 @@
             await faceapi.nets.faceRecognitionNet.loadFromUri('models');
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             document.getElementById('adminVideo').srcObject = stream;
-        } catch (e) {}
+        } catch (e) { console.log("Kamera/Model ralat"); }
 
+        // Listener Real-time
         onSnapshot(collection(db, "users"), (uSnap) => {
             const users = [];
-            uSnap.forEach(d => users.push({id: d.id, ...d.data()}));
+            const staffList = document.getElementById('staffListBody');
+            staffList.innerHTML = "";
 
-            onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (aSnap) => {
+            uSnap.forEach(d => {
+                const userData = d.data();
+                users.push({id: d.id, ...userData});
+                staffList.innerHTML += `
+                    <tr>
+                        <td><strong>${userData.name}</strong></td>
+                        <td style="text-align:right;">
+                            <button onclick="markManual('${userData.name}')" class="btn btn-manual">HADIR</button>
+                            <button onclick="deleteUser('${d.id}', '${userData.name}')" class="btn btn-del-user">🗑️</button>
+                        </td>
+                    </tr>`;
+            });
+
+            const qAtt = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+            onSnapshot(qAtt, (aSnap) => {
                 const tbody = document.getElementById('tableBody');
                 tbody.innerHTML = "";
                 const today = new Date().toLocaleDateString('en-CA');
@@ -166,7 +202,7 @@
                     const data = d.data();
                     const ts = data.timestamp?.toDate();
                     if(ts && ts.toLocaleDateString('en-CA') === today) {
-                        logs[data.name] = { time: ts.toLocaleTimeString(), status: data.status, id: d.id };
+                        logs[data.name] = { time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), status: data.status, id: d.id };
                     }
                 });
 
@@ -176,30 +212,55 @@
                         <tr>
                             <td><strong>${u.name}</strong></td>
                             <td>${log ? log.time : '--:--'}</td>
-                            <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Imbas'}</span></td>
-                            <td><button onclick="deleteRecord('${log?.id}')" style="color:red; cursor:pointer; background:none; border:none;">${log ? 'Padam' : ''}</button></td>
+                            <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Hadir'}</span></td>
+                            <td style="text-align:right;">${log ? `<button onclick="deleteRecord('${log.id}')" style="color:red; background:none; border:none; cursor:pointer;">Padam</button>` : ''}</td>
                         </tr>`;
                 });
             });
         });
     }
 
+    // ACTIONS
     window.register = async () => {
-        const name = document.getElementById('staffName').value;
+        const nameInput = document.getElementById('staffName');
         const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (detection && name) {
-            await addDoc(collection(db, "users"), { name: name, descriptor: Array.from(detection.descriptor) });
-            alert("Staf Berjaya Didaftarkan");
-            document.getElementById('staffName').value = "";
+        if (detection && nameInput.value) {
+            await addDoc(collection(db, "users"), { name: nameInput.value, descriptor: Array.from(detection.descriptor) });
+            alert("Identiti Wajah Berjaya Disimpan");
+            nameInput.value = "";
+        } else { alert("Wajah tidak dikesan / Nama kosong!"); }
+    };
+
+    window.markManual = async (name) => {
+        if(!confirm(`Tanda hadir manual untuk ${name}?`)) return;
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        let existingId = null;
+
+        snap.forEach(d => {
+            if(d.data().timestamp?.toDate().toLocaleDateString('en-CA') === todayStr) existingId = d.id;
+        });
+
+        if(existingId) {
+            await updateDoc(doc(db, "attendance", existingId), { timestamp: serverTimestamp(), status: "Hadir (Manual)" });
+        } else {
+            await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: "Hadir (Manual)" });
         }
     };
 
+    window.deleteUser = async (id, name) => {
+        if(confirm(`Padam profil ${name} secara kekal?`)) await deleteDoc(doc(db, "users", id));
+    };
+
     window.deleteRecord = async (id) => {
-        if(id && confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id));
+        if(confirm("Padam rekod kehadiran ini?")) await deleteDoc(doc(db, "attendance", id));
     };
 
     window.exportExcel = () => {
-        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
+        const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
+        XLSX.writeFile(wb, `Laporan_Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
     };
 </script>
 </body>
