@@ -153,31 +153,113 @@
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
-  authDomain: "portal-8368.firebaseapp.com",
-  projectId: "portal-8368",
-  storageBucket: "portal-8368.firebasestorage.app",
-  messagingSenderId: "150403488308",
-  appId: "1:150403488308:web:fac9b3c52dcd9975130861"
-};
+        apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
+        authDomain: "portal-8368.firebaseapp.com",
+        projectId: "portal-8368",
+        storageBucket: "portal-8368.firebasestorage.app",
+        messagingSenderId: "150403488308",
+        appId: "1:150403488308:web:fac9b3c52dcd9975130861"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    let pendingManualName = ""; // Simpan nama staf sementara menunggu PIN
+    let allUsers = [];
+    let attendanceLogs = {};
+    let pendingManualName = "";
 
+    // 1. AUTH CHECK
     onAuthStateChanged(auth, (user) => {
         if (user) {
             document.getElementById('loginSection').style.display = 'none';
             document.getElementById('adminContent').style.display = 'block';
-            initAdmin(); 
+            startRealTimeListeners(); 
+            initCamera();
         } else {
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('adminContent').style.display = 'none';
         }
     });
 
+    // 2. REAL-TIME LISTENERS (DIPERBAIKI: TIDAK BERSARANG)
+    function startRealTimeListeners() {
+        // Dengar perubahan senarai staf
+        onSnapshot(collection(db, "users"), (snapshot) => {
+            allUsers = [];
+            const staffList = document.getElementById('staffListBody');
+            staffList.innerHTML = "";
+            
+            snapshot.forEach(d => {
+                const u = { id: d.id, ...d.data() };
+                allUsers.push(u);
+                staffList.innerHTML += `
+                    <tr>
+                        <td><strong>${u.name}</strong></td>
+                        <td style="text-align:right;">
+                            <button onclick="markManual('${u.name}')" class="btn btn-manual">HADIR</button>
+                            <button onclick="deleteUser('${d.id}', '${u.name}')" class="btn btn-del-user">🗑️</button>
+                        </td>
+                    </tr>`;
+            });
+            renderAttendanceTable();
+        });
+
+        // Dengar perubahan kehadiran (Real-time)
+        const qAtt = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+        onSnapshot(qAtt, (snapshot) => {
+            attendanceLogs = {};
+            const today = new Date().toLocaleDateString('en-CA');
+
+            snapshot.forEach(d => {
+                const data = d.data();
+                // Gunakan estimate jika timestamp masih null (sedang sync)
+                const ts = data.timestamp ? data.timestamp.toDate() : new Date();
+                
+                if(ts.toLocaleDateString('en-CA') === today) {
+                    // Hanya simpan rekod PERTAMA (terkini) yang dijumpai untuk setiap nama
+                    if (!attendanceLogs[data.name]) {
+                        attendanceLogs[data.name] = { 
+                            time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), 
+                            status: data.status, 
+                            id: d.id 
+                        };
+                    }
+                }
+            });
+            renderAttendanceTable();
+        });
+    }
+
+    // 3. RENDER JADUAL
+    function renderAttendanceTable() {
+        const tbody = document.getElementById('tableBody');
+        if(!tbody) return;
+        tbody.innerHTML = "";
+
+        allUsers.forEach(u => {
+            const log = attendanceLogs[u.name];
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${u.name}</strong></td>
+                    <td>${log ? log.time : '--:--'}</td>
+                    <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Hadir'}</span></td>
+                    <td style="text-align:right;">${log ? `<button onclick="deleteRecord('${log.id}')" style="color:red; background:none; border:none; cursor:pointer;">Padam</button>` : ''}</td>
+                </tr>`;
+        });
+    }
+
+    async function initCamera() {
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
+            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
+            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            document.getElementById('adminVideo').srcObject = stream;
+        } catch (e) { console.error("Ralat kamera:", e); }
+    }
+
+    // FUNGSI LAIN (LOGIN, LOGOUT, REGISTER, DLL) KEKAL SAMA...
     window.handleLogin = async () => {
         try {
             await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
@@ -186,63 +268,6 @@
 
     window.handleLogout = () => signOut(auth);
 
-    async function initAdmin() {
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            document.getElementById('adminVideo').srcObject = stream;
-        } catch (e) { console.log("Kamera/Model ralat"); }
-
-        onSnapshot(collection(db, "users"), (uSnap) => {
-            const users = [];
-            const staffList = document.getElementById('staffListBody');
-            staffList.innerHTML = "";
-
-            uSnap.forEach(d => {
-                const userData = d.data();
-                users.push({id: d.id, ...userData});
-                staffList.innerHTML += `
-                    <tr>
-                        <td><strong>${userData.name}</strong></td>
-                        <td style="text-align:right;">
-                            <button onclick="markManual('${userData.name}')" class="btn btn-manual">HADIR</button>
-                            <button onclick="deleteUser('${d.id}', '${userData.name}')" class="btn btn-del-user">🗑️</button>
-                        </td>
-                    </tr>`;
-            });
-
-            const qAtt = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-            onSnapshot(qAtt, (aSnap) => {
-                const tbody = document.getElementById('tableBody');
-                tbody.innerHTML = "";
-                const today = new Date().toLocaleDateString('en-CA');
-                const logs = {};
-
-                aSnap.forEach(d => {
-                    const data = d.data();
-                    const ts = data.timestamp?.toDate();
-                    if(ts && ts.toLocaleDateString('en-CA') === today) {
-                        logs[data.name] = { time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), status: data.status, id: d.id };
-                    }
-                });
-
-                users.forEach(u => {
-                    const log = logs[u.name];
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><strong>${u.name}</strong></td>
-                            <td>${log ? log.time : '--:--'}</td>
-                            <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Hadir'}</span></td>
-                            <td style="text-align:right;">${log ? `<button onclick="deleteRecord('${log.id}')" style="color:red; background:none; border:none; cursor:pointer;">Padam</button>` : ''}</td>
-                        </tr>`;
-                });
-            });
-        });
-    }
-
-    // MODAL ACTIONS
     window.markManual = (name) => {
         pendingManualName = name;
         document.getElementById('pinModal').style.display = 'flex';
@@ -260,14 +285,13 @@
         if(pin === "1234") {
             const name = pendingManualName;
             closePinModal();
-            
             const todayStr = new Date().toLocaleDateString('en-CA');
             const q = query(collection(db, "attendance"), where("name", "==", name));
             const snap = await getDocs(q);
             let existingId = null;
-
             snap.forEach(d => {
-                if(d.data().timestamp?.toDate().toLocaleDateString('en-CA') === todayStr) existingId = d.id;
+                const ts = d.data().timestamp?.toDate();
+                if(ts && ts.toLocaleDateString('en-CA') === todayStr) existingId = d.id;
             });
 
             if(existingId) {
@@ -275,10 +299,8 @@
             } else {
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: "Hadir (Manual)" });
             }
-            alert("Kehadiran Berjaya Direkod");
         } else {
             alert("Kod Akses Salah!");
-            document.getElementById('manualPinInput').value = "";
         }
     };
 
@@ -293,18 +315,19 @@
     };
 
     window.deleteUser = async (id, name) => {
-        if(confirm(`Padam profil ${name} secara kekal?`)) await deleteDoc(doc(db, "users", id));
+        if(confirm(`Padam profil ${name}?`)) await deleteDoc(doc(db, "users", id));
     };
 
     window.deleteRecord = async (id) => {
-        if(confirm("Padam rekod kehadiran ini?")) await deleteDoc(doc(db, "attendance", id));
+        if(confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id));
     };
 
     window.exportExcel = () => {
         const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
-        XLSX.writeFile(wb, `Laporan_Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
+        XLSX.writeFile(wb, `Laporan_${new Date().toLocaleDateString()}.xlsx`);
     };
 </script>
 </body>
 </html>
+
 
