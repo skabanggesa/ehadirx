@@ -111,17 +111,22 @@
         document.getElementById('pinSection').style.display = "none";
         document.getElementById('status').innerText = "Memulakan AI...";
 
-        try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
+try {
+            // Gunakan URL terus dari GitHub untuk kestabilan di GitHub Pages
+            const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+            
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             
             const snap = await getDocs(collection(db, "users"));
             snap.forEach(doc => registeredUsers.push(doc.data()));
             
             startCamera();
-        } catch (err) { alert("Ralat model AI."); }
-    };
+        } catch (err) { 
+            console.error(err);
+            alert("Ralat model AI: Sila pastikan talian internet stabil."); 
+        }
 
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
@@ -202,5 +207,6 @@
 </script>
 </body>
 </html>
+
 
 
