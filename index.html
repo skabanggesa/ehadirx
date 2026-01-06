@@ -89,13 +89,13 @@
     import { getFirestore, collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
-  authDomain: "portal-8368.firebaseapp.com",
-  projectId: "portal-8368",
-  storageBucket: "portal-8368.firebasestorage.app",
-  messagingSenderId: "150403488308",
-  appId: "1:150403488308:web:fac9b3c52dcd9975130861"
-};
+        apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
+        authDomain: "portal-8368.firebaseapp.com",
+        projectId: "portal-8368",
+        storageBucket: "portal-8368.firebasestorage.app",
+        messagingSenderId: "150403488308",
+        appId: "1:150403488308:web:fac9b3c52dcd9975130861"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -105,14 +105,18 @@
     let isProcessing = false;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+    // FUNGSI 1: SAHKAN PIN
     window.verifyPin = async function() {
-        if(document.getElementById('pinInput').value !== DAILY_PIN) return alert("PIN Salah!");
+        const pinInput = document.getElementById('pinInput').value;
+        if(pinInput !== DAILY_PIN) {
+            alert("PIN Salah!");
+            return;
+        }
 
         document.getElementById('pinSection').style.display = "none";
         document.getElementById('status').innerText = "Memulakan AI...";
 
-try {
-            // Gunakan URL terus dari GitHub untuk kestabilan di GitHub Pages
+        try {
             const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
             
             await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
@@ -127,7 +131,9 @@ try {
             console.error(err);
             alert("Ralat model AI: Sila pastikan talian internet stabil."); 
         }
+    }; // <--- Tadi anda tertinggal penutup di sini
 
+    // FUNGSI 2: MULAKAN KAMERA
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
         .then(stream => {
@@ -136,12 +142,17 @@ try {
             video.style.display = "block";
             document.getElementById('status').innerText = "Sila halakan wajah ke kamera";
             setInterval(scan, 1000); 
+        })
+        .catch(err => {
+            alert("Gagal mengakses kamera: " + err.message);
         });
     }
 
+    // FUNGSI 3: IMBAS WAJAH
     async function scan() {
         if(isProcessing) return;
         const video = document.getElementById('video');
+        
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         
         if (detection) {
@@ -157,13 +168,13 @@ try {
         }
     }
 
+    // FUNGSI 4: SIMPAN KE FIREBASE
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
         try {
-            // Semak jika sudah ada rekod untuk hari ini (untuk dikemas kini)
             const qAtt = query(collection(db, "attendance"), where("name", "==", name));
             const querySnapshot = await getDocs(qAtt);
             let existingDocId = null;
@@ -177,13 +188,11 @@ try {
             });
 
             if (existingDocId) {
-                // Kemas kini rekod lama
                 await updateDoc(doc(db, "attendance", existingDocId), {
                     timestamp: serverTimestamp(),
                     status: status + " (Update)"
                 });
             } else {
-                // Tambah rekod baru
                 await addDoc(collection(db, "attendance"), {
                     name: name,
                     timestamp: serverTimestamp(),
@@ -200,6 +209,7 @@ try {
                 isProcessing = false;
             }, 3000);
         } catch (e) {
+            console.error(e);
             alert("Ralat simpan data.");
             isProcessing = false;
         }
@@ -207,6 +217,7 @@ try {
 </script>
 </body>
 </html>
+
 
 
 
