@@ -82,12 +82,12 @@
 
 <div id="pinModal" class="modal-overlay">
     <div class="modal-content">
-        <h3 style="margin-top:0;">Kod Akses</h3>
-        <p style="font-size: 0.8rem; color: #666;">Sila masukkan kod pengesahan</p>
+        <h3 id="modalTitle" style="margin-top:0;">Kod Akses</h3>
+        <p id="modalDesc" style="font-size: 0.8rem; color: #666;">Sila masukkan kod pengesahan</p>
         <input type="password" id="manualPinInput" class="login-input" placeholder="****" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
         <div style="display: flex; gap: 10px; margin-top: 15px;">
             <button onclick="closePinModal()" class="btn" style="flex:1; background:#eee;">Batal</button>
-            <button onclick="verifyManualPin()" class="btn" style="flex:1; background:var(--accent); color:white;">Sahkan</button>
+            <button id="pinSubmitBtn" class="btn" style="flex:1; background:var(--accent); color:white;">Sahkan</button>
         </div>
     </div>
 </div>
@@ -117,10 +117,20 @@
 
             <div class="card">
                 <h2>Senarai Staf & Manual</h2>
-                <div style="max-height: 300px; overflow-y: auto;">
-                    <table style="width: 100%;">
-                        <tbody id="staffListBody"></tbody>
-                    </table>
+                
+                <div id="staffListLocked" style="text-align: center; padding: 30px 10px;">
+                    <div style="font-size: 2.5rem; margin-bottom: 10px;">🔒</div>
+                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 15px;">Bahagian ini dikunci untuk privasi.</p>
+                    <button onclick="openUnlockModal()" class="btn btn-excel" style="font-size: 0.75rem;">BUKA SENARAI</button>
+                </div>
+
+                <div id="staffListContent" style="display: none;">
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table style="width: 100%;">
+                            <tbody id="staffListBody"></tbody>
+                        </table>
+                    </div>
+                    <button onclick="lockStaffList()" class="btn" style="width:100%; margin-top:15px; background:#f1f5f9; color:#64748b; font-size:0.7rem;">KUNCI SEMULA</button>
                 </div>
             </div>
         </div>
@@ -182,9 +192,8 @@
         }
     });
 
-    // 2. REAL-TIME LISTENERS (DIPERBAIKI: TIDAK BERSARANG)
+    // 2. REAL-TIME LISTENERS
     function startRealTimeListeners() {
-        // Dengar perubahan senarai staf
         onSnapshot(collection(db, "users"), (snapshot) => {
             allUsers = [];
             const staffList = document.getElementById('staffListBody');
@@ -205,7 +214,6 @@
             renderAttendanceTable();
         });
 
-        // Dengar perubahan kehadiran (Real-time)
         const qAtt = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
         onSnapshot(qAtt, (snapshot) => {
             attendanceLogs = {};
@@ -213,11 +221,9 @@
 
             snapshot.forEach(d => {
                 const data = d.data();
-                // Gunakan estimate jika timestamp masih null (sedang sync)
                 const ts = data.timestamp ? data.timestamp.toDate() : new Date();
                 
                 if(ts.toLocaleDateString('en-CA') === today) {
-                    // Hanya simpan rekod PERTAMA (terkini) yang dijumpai untuk setiap nama
                     if (!attendanceLogs[data.name]) {
                         attendanceLogs[data.name] = { 
                             time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), 
@@ -251,28 +257,55 @@
 
     async function initCamera() {
         try {
-            await faceapi.nets.tinyFaceDetector.loadFromUri('models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('models');
+            const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             document.getElementById('adminVideo').srcObject = stream;
         } catch (e) { console.error("Ralat kamera:", e); }
     }
 
-    // FUNGSI LAIN (LOGIN, LOGOUT, REGISTER, DLL) KEKAL SAMA...
-    window.handleLogin = async () => {
-        try {
-            await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
-        } catch (e) { alert("Gagal Log Masuk!"); }
-    };
-
-    window.handleLogout = () => signOut(auth);
-
-    window.markManual = (name) => {
-        pendingManualName = name;
+    // LOGIK UNLOCK SENARAI
+    window.openUnlockModal = () => {
+        document.getElementById('modalTitle').innerText = "Buka Kunci Senarai";
+        document.getElementById('modalDesc').innerText = "Masukkan Kod Akses '1234'";
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
         document.getElementById('manualPinInput').focus();
+        
+        // Tukar fungsi butang kepada verifyUnlock
+        document.getElementById('pinSubmitBtn').onclick = window.verifyUnlockPin;
+    };
+
+    window.verifyUnlockPin = () => {
+        const pin = document.getElementById('manualPinInput').value;
+        if(pin === "1234") {
+            document.getElementById('staffListLocked').style.display = 'none';
+            document.getElementById('staffListContent').style.display = 'block';
+            closePinModal();
+        } else {
+            alert("Kod Akses Salah!");
+            document.getElementById('manualPinInput').value = "";
+        }
+    };
+
+    window.lockStaffList = () => {
+        document.getElementById('staffListLocked').style.display = 'block';
+        document.getElementById('staffListContent').style.display = 'none';
+    };
+
+    // LOGIK HADIR MANUAL (KEKAL ASAL TAPI TUKAR BUTANG MODAL)
+    window.markManual = (name) => {
+        pendingManualName = name;
+        document.getElementById('modalTitle').innerText = "Sahkan Hadir Manual";
+        document.getElementById('modalDesc').innerText = `Masukkan Kod Pin untuk ${name}`;
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('manualPinInput').focus();
+        
+        // Tukar fungsi butang kepada verifyManualPin
+        document.getElementById('pinSubmitBtn').onclick = window.verifyManualPin;
     };
 
     window.closePinModal = () => {
@@ -299,10 +332,20 @@
             } else {
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: "Hadir (Manual)" });
             }
+            alert("Berjaya dikemaskini.");
         } else {
             alert("Kod Akses Salah!");
         }
     };
+
+    // FUNGSI REGISTER & LAIN-LAIN
+    window.handleLogin = async () => {
+        try {
+            await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
+        } catch (e) { alert("Gagal Log Masuk!"); }
+    };
+
+    window.handleLogout = () => signOut(auth);
 
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
@@ -329,5 +372,3 @@
 </script>
 </body>
 </html>
-
-
