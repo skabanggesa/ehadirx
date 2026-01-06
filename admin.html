@@ -2,137 +2,104 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin | Sistem Kehadiran Digital V1.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentadbir | Sistem Kehadiran</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #002147;
-            --accent: #1a73e8;
-            --bg: #f0f2f5;
-            --white: #ffffff;
-            --danger: #dc3545;
-            --success: #28a745;
-            --lock: #6c757d;
+            --primary: #1e293b;
+            --accent: #2563eb;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg: #f1f5f9;
         }
 
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding: 10px; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: var(--primary); }
         
         #loginSection { 
-            max-width: 400px; margin: 50px auto; background: var(--white); 
-            padding: 30px; border-radius: 20px; text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            max-width: 380px; margin: 100px auto; background: white; 
+            padding: 40px; border-radius: 24px; text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);
         }
         .login-input { 
-            width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; 
-            border-radius: 10px; box-sizing: border-box; font-size: 1rem;
+            width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #e2e8f0; 
+            border-radius: 12px; box-sizing: border-box; font-size: 1rem;
         }
-
-        #adminContent { display: none; } 
 
         .header { 
             display: flex; align-items: center; justify-content: space-between; 
-            margin-bottom: 20px; background: var(--white); padding: 10px 15px; 
-            border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            background: white; padding: 15px 5%; border-bottom: 1px solid #e2e8f0;
         }
-        .header img { height: 40px; }
 
-        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .main-container { padding: 30px 5%; display: grid; grid-template-columns: 1fr; gap: 25px; }
 
         .card { 
-            background: var(--white); padding: 20px; border-radius: 15px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative;
+            background: white; padding: 25px; border-radius: 20px; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
 
-        h2 { color: var(--primary); font-size: 1rem; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h2 { font-size: 1.1rem; margin-top: 0; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px; }
 
-        video { width: 100%; border-radius: 12px; background: #000; margin-bottom: 15px; transform: scaleX(-1); object-fit: cover; }
+        video { width: 100%; border-radius: 16px; background: #000; transform: scaleX(-1); }
 
-        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; }
-        .btn-save { background: var(--accent); color: white; }
-        .btn-excel { background: #217346; color: white; margin-bottom: 15px; }
-        .btn-logout { background: #f8d7da; color: #721c24; width: auto; padding: 8px 15px; font-size: 0.8rem; }
-        .btn-danger { background: var(--danger); color: white; padding: 5px 10px; font-size: 0.7rem; width: auto; }
-        .btn-manual { background: var(--success); color: white; padding: 5px 10px; font-size: 0.7rem; width: auto; }
-        .btn-unlock { background: var(--lock); color: white; margin-top: 20px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .btn-save { background: var(--accent); color: white; width: 100%; margin-top: 15px; }
+        .btn-excel { background: var(--success); color: white; }
+        .btn-logout { background: #fee2e2; color: var(--danger); }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.8rem; border-bottom: 2px solid #f1f5f9; }
+        td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
 
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f8f9fa; color: #555; text-align: left; padding: 10px; font-size: 0.75rem; }
-        td { padding: 10px; border-bottom: 1px solid #f1f1f1; font-size: 0.8rem; }
+        .status-tag { padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
+        .tag-hadir { background: #d1fae5; color: #065f46; }
+        .tag-tidak { background: #fee2e2; color: #991b1b; }
 
-        .status-tag { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; }
-        .tag-hadir { background: #d4edda; color: #155724; }
-        .tag-lewat { background: #fff3cd; color: #856404; }
-        .tag-tidak { background: #f8d7da; color: #721c24; }
-
-        #lockedOverlay { text-align: center; padding: 40px 10px; }
-
-        @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } .full-width { grid-column: span 2; } }
+        @media (min-width: 1024px) { 
+            .main-container { grid-template-columns: 350px 1fr; }
+            .full-width { grid-column: span 2; }
+        }
     </style>
 </head>
 <body>
 
 <div id="loginSection">
-    <img src="ehadir.png" alt="Logo" style="width:70px; margin-bottom:15px;">
-    <h2 style="border:none">Log Masuk Pentadbir</h2>
+    <img src="ehadir.png" alt="Logo" style="width:60px; margin-bottom:20px;">
+    <h2 style="color:var(--primary)">Akses Pentadbir</h2>
     <input type="email" id="loginEmail" class="login-input" placeholder="Emel Rasmi">
     <input type="password" id="loginPass" class="login-input" placeholder="Kata Laluan">
-    <button onclick="handleLogin()" class="btn btn-save">MASUK PANEL</button>
+    <button onclick="handleLogin()" class="btn btn-save">LOG MASUK</button>
 </div>
 
-<div id="adminContent">
+<div id="adminContent" style="display:none;">
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <img src="ehadir.png" alt="Logo">
-            <div style="font-weight: 800; color: var(--primary); font-size: 0.8rem;">ADMIN PANEL</div>
-        </div>
-        <button class="btn btn-logout" onclick="handleLogout()">LOG KELUAR</button>
+        <div style="font-weight: 800; font-size: 1.2rem;">PANTU KEHADIRAN</div>
+        <button class="btn btn-logout" onclick="handleLogout()">KELUAR</button>
     </div>
 
-    <div class="grid">
+    <div class="main-container">
         <div class="card">
-            <h2>Daftar Wajah Staf</h2>
+            <h2>Daftar Staf Baru</h2>
             <video id="adminVideo" autoplay muted playsinline></video>
-            <input type="text" id="staffName" placeholder="Nama Penuh Guru" style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
-            <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
+            <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:15px;">
+            <button onclick="register()" class="btn btn-save">SIMPAN WAJAH</button>
         </div>
 
-        <div class="card" id="staffManagementCard">
-            <h2>Urus Staf & Hadir Manual</h2>
-            <div id="lockedOverlay">
-                <div style="font-size: 3rem;">🔒</div>
-                <p style="color:#666; font-size: 0.9rem;">Bahagian ini dilindungi.<br>Hanya untuk kegunaan Pentadbir.</p>
-                <button onclick="unlockManagement()" class="btn btn-unlock" style="width:auto; padding: 10px 20px;">BUKA AKSES</button>
-            </div>
-            <div id="unlockedContent" style="display:none;">
-                <div style="max-height: 400px; overflow-y: auto;">
-                    <table>
-                        <thead>
-                            <tr><th>GURU</th><th>TINDAKAN</th></tr>
-                        </thead>
-                        <tbody id="staffTableBody"></tbody>
-                    </table>
-                </div>
-                <button onclick="lockManagement()" class="btn btn-unlock" style="margin-top:15px; background:#eee; color:#333;">KUNCI SEMULA</button>
-            </div>
-        </div>
-
-        <div class="card full-width">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h2 style="border:none; margin:0;">Laporan Kehadiran Hari Ini</h2>
-                <button onclick="exportExcel()" class="btn btn-excel" style="width:auto; padding:8px 15px;">📊 EXCEL</button>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin:0;">Laporan Hari Ini</h2>
+                <button onclick="exportExcel()" class="btn btn-excel">MUAT TURUN EXCEL</button>
             </div>
             <div style="overflow-x: auto;">
                 <table id="reportTable">
                     <thead>
-                        <tr><th>GURU</th><th>WAKTU</th><th>STATUS</th><th>TINDAKAN</th></tr>
+                        <tr><th>NAMA GURU</th><th>WAKTU KEMASKINI</th><th>STATUS</th><th>TINDAKAN</th></tr>
                     </thead>
-                    <tbody id="tableBody">
-                        <tr><td colspan="4" style="text-align:center;">Menunggu data...</td></tr>
-                    </tbody>
+                    <tbody id="tableBody"></tbody>
                 </table>
             </div>
         </div>
@@ -141,35 +108,27 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, Timestamp, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
-  authDomain: "portal-8368.firebaseapp.com",
-  projectId: "portal-8368",
-  storageBucket: "portal-8368.firebasestorage.app",
-  messagingSenderId: "150403488308",
-  appId: "1:150403488308:web:fac9b3c52dcd9975130861"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
+        authDomain: "e-hadir-ba989.firebaseapp.com",
+        projectId: "e-hadir-ba989",
+        storageBucket: "e-hadir-ba989.firebasestorage.app",
+        messagingSenderId: "777207462690",
+        appId: "1:777207462690:web:0c65d249532428bea6437b"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-    const ADMIN_ACCESS_CODE = "1234"; 
-
-    // Variabel Global Data
-    let allUsers = [];
-    let todayAttendance = [];
-
-    // --- SISTEM LOGIN ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
             document.getElementById('loginSection').style.display = 'none';
             document.getElementById('adminContent').style.display = 'block';
-            startAdminListeners(); 
+            initAdmin(); 
         } else {
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('adminContent').style.display = 'none';
@@ -177,171 +136,71 @@ const firebaseConfig = {
     });
 
     window.handleLogin = async () => {
-        const email = document.getElementById('loginEmail').value;
-        const pass = document.getElementById('loginPass').value;
         try {
-            await signInWithEmailAndPassword(auth, email, pass);
-        } catch (e) { alert("Emel atau Kata Laluan Salah!"); }
+            await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
+        } catch (e) { alert("Gagal!"); }
     };
 
     window.handleLogout = () => signOut(auth);
 
-    // --- REALTIME LISTENERS ---
-    async function startAdminListeners() {
-        // 1. Muat Model AI & Kamera
+    async function initAdmin() {
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri('models');
             await faceapi.nets.faceLandmark68Net.loadFromUri('models');
             await faceapi.nets.faceRecognitionNet.loadFromUri('models');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             document.getElementById('adminVideo').srcObject = stream;
-        } catch (err) { console.log("Kamera tidak aktif atau model gagal dimuat."); }
+        } catch (e) {}
 
-        // 2. Listener Senarai Staf
-        onSnapshot(collection(db, "users"), (snapshot) => {
-            allUsers = [];
-            const staffTbody = document.getElementById('staffTableBody');
-            staffTbody.innerHTML = "";
+        onSnapshot(collection(db, "users"), (uSnap) => {
+            const users = [];
+            uSnap.forEach(d => users.push({id: d.id, ...d.data()}));
 
-            snapshot.forEach(uDoc => {
-                const userData = uDoc.data();
-                allUsers.push({ id: uDoc.id, name: userData.name });
-                staffTbody.innerHTML += `
-                    <tr>
-                        <td><strong>${userData.name}</strong></td>
-                        <td style="display:flex; gap:5px;">
-                            <button class="btn btn-manual" onclick="markAttendanceManual('${userData.name}')">HADIR</button>
-                            <button class="btn btn-danger" onclick="deleteUser('${uDoc.id}', '${userData.name}')">PADAM</button>
-                        </td>
-                    </tr>`;
-            });
-            renderAttendanceTable(); // Kemaskini jadual laporan
-        });
+            onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (aSnap) => {
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = "";
+                const today = new Date().toLocaleDateString('en-CA');
+                const logs = {};
 
-        // 3. Listener Kehadiran Hari Ini
-        const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-        onSnapshot(q, (snapshot) => {
-            todayAttendance = [];
-            const todayStr = new Date().toLocaleDateString('en-CA');
-
-            snapshot.forEach(aDoc => {
-                const data = aDoc.data();
-                const ts = data.timestamp?.toDate();
-                // Hanya ambil data hari ini
-                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
-                    todayAttendance.push({ id: aDoc.id, ...data, dateObj: ts });
-                }
-            });
-            renderAttendanceTable(); // Kemaskini jadual laporan
-        });
-    }
-
-    // --- FUNGSI GABUNG DATA & PAPAR ---
-    function renderAttendanceTable() {
-        const tbody = document.getElementById('tableBody');
-        if (!tbody) return;
-        tbody.innerHTML = "";
-
-        // Susun data mengikut nama untuk memudahkan carian
-        const recordMap = {};
-        todayAttendance.forEach(rec => {
-            recordMap[rec.name] = rec;
-        });
-
-        allUsers.forEach(user => {
-            const hasRecord = recordMap[user.name];
-            if (hasRecord) {
-                const timeStr = hasRecord.dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${user.name}</strong></td>
-                        <td>${timeStr}</td>
-                        <td><span class="status-tag ${hasRecord.status === 'Hadir' ? 'tag-hadir' : 'tag-lewat'}">${hasRecord.status}</span></td>
-                        <td><button onclick="secureDeleteRec('${hasRecord.id}')" style="background:none;border:none;color:red;font-size:14px;cursor:pointer;">🗑️</button></td>
-                    </tr>`;
-            } else {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${user.name}</td>
-                        <td>--:--</td>
-                        <td><span class="status-tag tag-tidak">Tidak Hadir</span></td>
-                        <td>-</td>
-                    </tr>`;
-            }
-        });
-    }
-
-    // --- FUNGSI TINDAKAN (ACTIONS) ---
-    window.register = async () => {
-        const nameInput = document.getElementById('staffName');
-        const name = nameInput.value.trim();
-        if(!name) return alert("Sila masukkan nama!");
-
-        const video = document.getElementById('adminVideo');
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        
-        if (detection) {
-            await addDoc(collection(db, "users"), { 
-                name: name, 
-                descriptor: Array.from(detection.descriptor) 
-            });
-            beep.play(); 
-            alert("Identiti wajah " + name + " berjaya disimpan.");
-            nameInput.value = "";
-        } else { 
-            alert("Wajah tidak dikesan. Sila pastikan pencahayaan cukup."); 
-        }
-    };
-
-    window.markAttendanceManual = async (name) => {
-        if(confirm(`Tanda kehadiran manual untuk ${name}?`)) {
-            try {
-                await addDoc(collection(db, "attendance"), { 
-                    name: name, 
-                    timestamp: serverTimestamp(), 
-                    status: "Hadir" 
+                aSnap.forEach(d => {
+                    const data = d.data();
+                    const ts = data.timestamp?.toDate();
+                    if(ts && ts.toLocaleDateString('en-CA') === today) {
+                        logs[data.name] = { time: ts.toLocaleTimeString(), status: data.status, id: d.id };
+                    }
                 });
-            } catch (e) { alert("Ralat menyimpan data."); }
+
+                users.forEach(u => {
+                    const log = logs[u.name];
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${u.name}</strong></td>
+                            <td>${log ? log.time : '--:--'}</td>
+                            <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Imbas'}</span></td>
+                            <td><button onclick="deleteRecord('${log?.id}')" style="color:red; cursor:pointer; background:none; border:none;">${log ? 'Padam' : ''}</button></td>
+                        </tr>`;
+                });
+            });
+        });
+    }
+
+    window.register = async () => {
+        const name = document.getElementById('staffName').value;
+        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (detection && name) {
+            await addDoc(collection(db, "users"), { name: name, descriptor: Array.from(detection.descriptor) });
+            alert("Staf Berjaya Didaftarkan");
+            document.getElementById('staffName').value = "";
         }
     };
 
-    window.deleteUser = async (id, name) => {
-        if(confirm(`Adakah anda pasti mahu memadam profil ${name}? Rekod wajah akan hilang.`)) {
-            await deleteDoc(doc(db, "users", id));
-        }
-    };
-
-    window.secureDeleteRec = async (id) => {
-        const code = prompt("Masukkan Kod Akses Pentadbir untuk padam rekod:");
-        if (code === ADMIN_ACCESS_CODE) {
-            await deleteDoc(doc(db, "attendance", id));
-        } else if (code !== null) {
-            alert("Kod salah!");
-        }
+    window.deleteRecord = async (id) => {
+        if(id && confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id));
     };
 
     window.exportExcel = () => {
-        const table = document.getElementById("reportTable");
-        const wb = XLSX.utils.table_to_book(table);
-        XLSX.writeFile(wb, `Laporan_Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
+        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `Kehadiran_${new Date().toLocaleDateString()}.xlsx`);
     };
-
-    // --- UI LOCK/UNLOCK ---
-    window.unlockManagement = () => {
-        const code = prompt("Masukkan kod akses:");
-        if (code === ADMIN_ACCESS_CODE) {
-            document.getElementById('lockedOverlay').style.display = 'none';
-            document.getElementById('unlockedContent').style.display = 'block';
-        } else if (code !== null) {
-            alert("Kod akses salah!");
-        }
-    };
-
-    window.lockManagement = () => {
-        document.getElementById('lockedOverlay').style.display = 'block';
-        document.getElementById('unlockedContent').style.display = 'none';
-    };
-
 </script>
 </body>
 </html>
