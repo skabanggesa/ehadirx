@@ -3,70 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sistem Kehadiran Digital Versi 1.0</title>
+    <title>Sistem Kehadiran Digital V1.0</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --primary-color: #002147; 
-            --secondary-color: #1a73e8; 
-            --bg-color: #f4f7fa;
-            --success-color: #28a745;
-            --warning-color: #ffc107;
+            --primary: #0f172a;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --bg: #f8fafc;
         }
 
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color); 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg); 
             margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;
         }
 
         .container { 
-            width: 90%; max-width: 400px; background: white; padding: 30px; 
-            border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); text-align: center;
+            width: 90%; max-width: 420px; background: white; padding: 40px 30px; 
+            border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center;
         }
 
-        .logo { width: 100px; margin-bottom: 10px; }
-        h1 { font-size: 1.2rem; color: var(--primary-color); margin: 0; font-weight: 700; }
-        p.version { font-size: 0.8rem; color: #666; margin-top: 5px; margin-bottom: 25px; }
+        .logo { width: 80px; margin-bottom: 15px; }
+        h1 { font-size: 1.4rem; color: var(--primary); margin: 0; font-weight: 800; }
+        p.version { font-size: 0.75rem; color: #64748b; margin-top: 5px; margin-bottom: 30px; letter-spacing: 1px; }
 
-        .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; border: 1px solid #eee; }
-        .warning { background: #fff3cd; color: #856404; }
-        .ready { background: #e8f0fe; color: var(--secondary-color); }
+        .status-box { 
+            padding: 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; 
+            margin-bottom: 25px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569;
+        }
 
-        video { width: 100%; border-radius: 15px; background: #222; display: none; transform: scaleX(-1); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        video { 
+            width: 100%; border-radius: 18px; background: #000; display: none; 
+            transform: scaleX(-1); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
 
-        input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #eee; border-radius: 12px; font-size: 1.2rem; text-align: center; box-sizing: border-box; }
+        input { 
+            width: 100%; padding: 16px; margin-bottom: 12px; border: 2px solid #e2e8f0; 
+            border-radius: 14px; font-size: 1.1rem; text-align: center; box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--accent); outline: none; }
 
-        .btn-main { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .btn-main { 
+            width: 100%; padding: 16px; background: var(--primary); color: white; 
+            border: none; border-radius: 14px; font-weight: 700; cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-main:active { transform: scale(0.98); }
 
         .overlay { 
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-            color: white; display: none; flex-direction: column; 
-            justify-content: center; align-items: center; z-index: 100;
+            position: fixed; inset: 0; color: white; display: none; 
+            flex-direction: column; justify-content: center; align-items: center; z-index: 100;
         }
-        .bg-success { background: var(--success-color); }
-        .bg-warning { background: var(--warning-color); color: #856404; }
+        .bg-success { background: var(--success); }
     </style>
 </head>
 <body>
 
-<div id="overlay" class="overlay">
-    <div id="overlayIcon" style="font-size: 5rem;">✅</div>
-    <div id="overlayText" style="font-size: 1.5rem; font-weight: bold; text-align: center; padding: 20px;"></div>
+<div id="overlay" class="overlay bg-success">
+    <div id="overlayIcon" style="font-size: 5rem; margin-bottom: 10px;">✅</div>
+    <div id="overlayText" style="font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px;"></div>
 </div>
 
 <div class="container">
     <img src="ehadir.png" alt="Logo" class="logo">
-    <h1>Sistem Kehadiran Digital</h1>
-    <p class="version">Versi 1.0</p>
+    <h1>E-HADIR DIGITAL</h1>
+    <p class="version">EDISI PINTAR V1.0</p>
 
-    <div id="status" class="status-box warning">Sila masukkan PIN untuk akses</div>
+    <div id="status" class="status-box">Sistem sedia. Sila masukkan PIN.</div>
 
     <div id="pinSection">
-        <input type="password" id="pinInput" placeholder="PIN 6-DIGIT" maxlength="6" inputmode="numeric">
-        <button class="btn-main" onclick="verifyPin()">AKTIFKAN KAMERA</button>
+        <input type="password" id="pinInput" placeholder="KOD PIN 6-DIGIT" maxlength="6" inputmode="numeric">
+        <button class="btn-main" onclick="verifyPin()">AKTIFKAN IMBASAN</button>
     </div>
 
     <video id="video" autoplay muted playsinline></video>
@@ -74,7 +86,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, serverTimestamp, GeoPoint } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
@@ -88,12 +100,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const SCHOOL_LOC = { lat: 5.9604992, lng: 116.1003008 }; 
-    const RADIUS = 150; 
     const DAILY_PIN = "123456"; 
-    
     let registeredUsers = [];
-    let alreadyScanned = []; 
     let isProcessing = false;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
@@ -101,7 +109,7 @@
         if(document.getElementById('pinInput').value !== DAILY_PIN) return alert("PIN Salah!");
 
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Memuatkan Model AI...";
+        document.getElementById('status').innerText = "Memulakan AI...";
 
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri('models');
@@ -111,30 +119,9 @@
             const snap = await getDocs(collection(db, "users"));
             snap.forEach(doc => registeredUsers.push(doc.data()));
             
-            // Aktifkan sinkronisasi real-time untuk data kehadiran hari ini
-            syncAlreadyScanned();
             startCamera();
-        } catch (err) { alert("Gagal muat model."); }
+        } catch (err) { alert("Ralat model AI."); }
     };
-
-    // FUNGSI BARU: Real-time sync dengan Firestore
-    function syncAlreadyScanned() {
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        const q = query(collection(db, "attendance"));
-        
-        onSnapshot(q, (snapshot) => {
-            alreadyScanned = []; // Reset senarai lokal
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                const ts = data.timestamp?.toDate();
-                // Semak jika data adalah untuk hari ini sahaja
-                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
-                    alreadyScanned.push(data.name);
-                }
-            });
-            console.log("Senarai imbasan dikemaskini:", alreadyScanned);
-        });
-    }
 
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
@@ -142,7 +129,7 @@
             const video = document.getElementById('video');
             video.srcObject = stream;
             video.style.display = "block";
-            checkLocation();
+            document.getElementById('status').innerText = "Sila halakan wajah ke kamera";
             setInterval(scan, 1000); 
         });
     }
@@ -155,13 +142,7 @@
         if (detection) {
             for (let user of registeredUsers) {
                 const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.descriptor));
-                
                 if (dist < 0.45) {
-                    if (alreadyScanned.includes(user.name)) {
-                        showWarning(user.name);
-                        return;
-                    }
-
                     isProcessing = true;
                     beep.play();
                     saveAttendance(user.name);
@@ -171,57 +152,52 @@
         }
     }
 
-    function showWarning(name) {
-        isProcessing = true;
-        const overlay = document.getElementById('overlay');
-        overlay.className = "overlay bg-warning";
-        document.getElementById('overlayIcon').innerText = "⚠️";
-        document.getElementById('overlayText').innerHTML = `KEHADIRAN TELAH DIREKOD<br><span style="font-size:1.1rem">${name} sudah mengimbas wajah hari ini.</span>`;
-        overlay.style.display = "flex";
-
-        setTimeout(() => {
-            overlay.style.display = "none";
-            isProcessing = false;
-        }, 3000);
-    }
-
     async function saveAttendance(name) {
         const now = new Date();
+        const todayStr = now.toLocaleDateString('en-CA');
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            await addDoc(collection(db, "attendance"), {
-                name: name,
-                timestamp: serverTimestamp(),
-                status: status,
-                location: new GeoPoint(pos.coords.latitude, pos.coords.longitude)
+        try {
+            // Semak jika sudah ada rekod untuk hari ini (untuk dikemas kini)
+            const qAtt = query(collection(db, "attendance"), where("name", "==", name));
+            const querySnapshot = await getDocs(qAtt);
+            let existingDocId = null;
+
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                const ts = data.timestamp?.toDate();
+                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
+                    existingDocId = doc.id;
+                }
             });
 
-            // Nota: alreadyScanned akan dikemaskini secara automatik oleh onSnapshot
+            if (existingDocId) {
+                // Kemas kini rekod lama
+                await updateDoc(doc(db, "attendance", existingDocId), {
+                    timestamp: serverTimestamp(),
+                    status: status + " (Update)"
+                });
+            } else {
+                // Tambah rekod baru
+                await addDoc(collection(db, "attendance"), {
+                    name: name,
+                    timestamp: serverTimestamp(),
+                    status: status
+                });
+            }
+
             const overlay = document.getElementById('overlay');
-            overlay.className = "overlay bg-success";
-            document.getElementById('overlayIcon').innerText = "✅";
-            document.getElementById('overlayText').innerHTML = `TERIMA KASIH<br>${name}<br><br>STATUS: ${status}`;
+            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
             overlay.style.display = "flex";
             
             setTimeout(() => {
                 overlay.style.display = "none";
                 isProcessing = false;
-            }, 4000);
-        });
-    }
-
-    function checkLocation() {
-        navigator.geolocation.getCurrentPosition((pos) => {
-            const R = 6371e3;
-            const dLat = (SCHOOL_LOC.lat - pos.coords.latitude) * Math.PI/180;
-            const dLon = (SCHOOL_LOC.lng - pos.coords.longitude) * Math.PI/180;
-            const a = Math.sin(dLat/2)**2 + Math.cos(pos.coords.latitude*Math.PI/180)*Math.cos(SCHOOL_LOC.lat*Math.PI/180)*Math.sin(dLon/2)**2;
-            const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const box = document.getElementById('status');
-            if(d <= RADIUS) { box.innerText = "✅ Lokasi Sekolah Disahkan"; box.className = "status-box ready"; }
-            else { box.innerText = `Luar Kawasan (${Math.round(d)}m)`; box.className = "status-box warning"; }
-        }, null, { enableHighAccuracy: true });
+            }, 3000);
+        } catch (e) {
+            alert("Ralat simpan data.");
+            isProcessing = false;
+        }
     }
 </script>
 </body>
