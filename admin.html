@@ -70,6 +70,7 @@
         .dot-cuti { background: var(--accent); }
 
         #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
+        #regStatus { font-size: 0.7rem; font-weight: 700; text-align: center; margin-top: 5px; color: var(--accent); }
     </style>
 </head>
 <body>
@@ -136,6 +137,7 @@
             <div class="card">
                 <h2>👤 Daftar Guru Baru</h2>
                 <video id="adminVideo" autoplay muted playsinline></video>
+                <div id="regStatus">AI Sedia</div>
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
             </div>
@@ -194,28 +196,37 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
+    const ADMIN_PIN = "1234";
 
     let allUsers = [];
     let currentAttendance = {};
     let calDate = new Date();
     let currentViewedStaff = "";
-    const ADMIN_PIN = "1234";
 
+    // 1. FUNGSI PERMULAAN (LOAD MODELS & KAMERA)
     async function initAdmin() {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById('adminVideo').srcObject = stream;
-        document.getElementById('dateFilter').valueAsDate = new Date();
-        startDataListeners();
+        try {
+            console.log("Loading models...");
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+            
+            const video = document.getElementById('adminVideo');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            
+            document.getElementById('dateFilter').valueAsDate = new Date();
+            startDataListeners();
+        } catch (err) {
+            console.error("Initialization Error:", err);
+            alert("Ralat memulakan kamera atau model AI.");
+        }
     }
 
+    // 2. REAL-TIME DATA LISTENERS
     function startDataListeners() {
-        // AMBIL & SUSUN NAMA MENGIKUT ABJAD (A-Z)
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            // Logik Susunan Abjad
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
             updateDashboard();
         });
@@ -236,6 +247,7 @@
         });
     }
 
+    // 3. KEMASKINI PAPARAN UTAMA
     window.updateDashboard = () => {
         const selectedDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
@@ -277,7 +289,104 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // --- FUNGSI KALENDAR ---
+    // 4. DAFTAR GURU (ANTI-DUPLICATE)
+    window.register = async () => {
+        const nameInput = document.getElementById('staffName');
+        const name = nameInput.value.trim().toUpperCase();
+        
+        if (!name) return alert("Sila masukkan nama guru!");
+
+        const statusLabel = document.getElementById('regStatus');
+        statusLabel.innerText = "⌛ SEDANG MENGESAN WAJAH...";
+        statusLabel.style.color = "var(--warning)";
+
+        const det = await faceapi.detectSingleFace(
+            document.getElementById('adminVideo'), 
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+        ).withFaceLandmarks().withFaceDescriptor();
+
+        if (det) {
+            try {
+                const q = query(collection(db, "users"), where("name", "==", name));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const docId = snap.docs[0].id;
+                    if(confirm(`Nama ${name} sudah ada dalam sistem. Kemaskini data wajah?`)) {
+                        await updateDoc(doc(db, "users", docId), {
+                            descriptor: Array.from(det.descriptor)
+                        });
+                        alert("Data wajah dikemaskini!");
+                    }
+                } else {
+                    await addDoc(collection(db, "users"), { 
+                        name: name, 
+                        descriptor: Array.from(det.descriptor) 
+                    });
+                    alert("Guru berjaya didaftarkan!");
+                }
+                nameInput.value = "";
+            } catch (e) {
+                alert("Ralat Firestore: " + e.message);
+            }
+        } else {
+            alert("Wajah tidak dikesan! Pastikan anda berada di depan kamera.");
+        }
+        statusLabel.innerText = "AI SEDIA";
+        statusLabel.style.color = "var(--accent)";
+    };
+
+    // 5. KEHADIRAN MANUAL
+    window.openManualModal = (name) => {
+        document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
+        document.getElementById('manualOptions').style.display = 'block';
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
+    };
+
+    async function submitManual(name) {
+        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
+        
+        const status = document.getElementById('statusSelect').value;
+        const selDate = document.getElementById('dateFilter').value;
+        
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        let existingId = null;
+        
+        snap.forEach(d => { 
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) existingId = d.id; 
+        });
+
+        try {
+            if (existingId) {
+                await updateDoc(doc(db, "attendance", existingId), { status, timestamp: serverTimestamp() });
+            } else {
+                await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
+            }
+            alert("Berjaya dikemaskini.");
+            closeModal('pinModal');
+        } catch(e) { alert("Ralat menyimpan."); }
+    }
+
+    // 6. PADAM GURU
+    window.confirmDeleteUser = (id, name) => {
+        document.getElementById('modalTitle').innerText = "Padam Guru";
+        document.getElementById('manualOptions').style.display = 'none';
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('pinSubmitBtn').onclick = async () => {
+            if (document.getElementById('manualPinInput').value === ADMIN_PIN) { 
+                await deleteDoc(doc(db, "users", id)); 
+                alert(`Profil ${name} dipadam.`);
+                closeModal('pinModal'); 
+            } else alert("PIN Salah!");
+        };
+    };
+
+    // 7. KALENDAR INDIVIDU
     window.openIndividualCalendar = (name) => {
         currentViewedStaff = name; calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
@@ -308,112 +417,7 @@
         }
     }
 
-// --- FUNGSI ADMIN (VERSI OPTIMUM & ANTI-PENDUA) ---
-
-    window.register = async () => {
-        const nameInput = document.getElementById('staffName');
-        const name = nameInput.value.trim().toUpperCase(); // Standardkan nama ke huruf besar
-        
-        if (!name) return alert("Sila masukkan nama guru!");
-
-        const statusLabel = document.getElementById('regStatus');
-        if(statusLabel) statusLabel.innerText = "Sedang mengesan wajah...";
-
-        // Imbas wajah menggunakan TinyFaceDetector
-        const det = await faceapi.detectSingleFace(
-            document.getElementById('adminVideo'), 
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
-        ).withFaceLandmarks().withFaceDescriptor();
-
-        if (det) {
-            try {
-                // 1. SEMAKAN PENDUA: Cari jika nama guru sudah wujud di Firestore
-                const q = query(collection(db, "users"), where("name", "==", name));
-                const snap = await getDocs(q);
-
-                if (!snap.empty) {
-                    // 2. Jika wujud, tawarkan untuk kemaskini (Update) wajah sahaja
-                    const docId = snap.docs[0].id;
-                    if(confirm(`Nama ${name} sudah ada. Adakah anda ingin mengemaskini data wajahnya?`)) {
-                        await updateDoc(doc(db, "users", docId), {
-                            descriptor: Array.from(det.descriptor)
-                        });
-                        alert("Data wajah berjaya dikemaskini!");
-                    }
-                } else {
-                    // 3. Jika baru, baru gunakan addDoc
-                    await addDoc(collection(db, "users"), { 
-                        name: name, 
-                        descriptor: Array.from(det.descriptor) 
-                    });
-                    alert("Guru berjaya didaftarkan!");
-                }
-                nameInput.value = ""; // Kosongkan input selepas berjaya
-            } catch (e) {
-                console.error(e);
-                alert("Ralat semasa menyimpan ke Firestore.");
-            }
-        } else {
-            alert("Wajah tidak dikesan! Pastikan kedudukan wajah jelas di kamera.");
-        }
-        if(statusLabel) statusLabel.innerText = "AI Sedia";
-    };
-
-    window.openManualModal = (name) => {
-        document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
-        // Pastikan elemen ini wujud dalam HTML anda untuk pilihan status
-        if(document.getElementById('manualOptions')) document.getElementById('manualOptions').style.display = 'block';
-        
-        document.getElementById('pinModal').style.display = 'flex';
-        document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
-    };
-
-    async function submitManual(name) {
-        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
-        
-        const statusSelect = document.getElementById('statusSelect');
-        const status = statusSelect ? statusSelect.value : "Hadir (Manual)";
-        
-        const dateFilter = document.getElementById('dateFilter');
-        const selDate = dateFilter ? dateFilter.value : new Date().toLocaleDateString('en-CA');
-        
-        // Cari rekod kehadiran sedia ada untuk tarikh tersebut
-        const q = query(collection(db, "attendance"), where("name", "==", name));
-        const snap = await getDocs(q);
-        let existingId = null;
-        
-        snap.forEach(d => { 
-            const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) existingId = d.id; 
-        });
-
-        try {
-            if (existingId) {
-                await updateDoc(doc(db, "attendance", existingId), { status: status, timestamp: serverTimestamp() });
-            } else {
-                await addDoc(collection(db, "attendance"), { name: name, status: status, timestamp: serverTimestamp() });
-            }
-            alert("Rekod kehadiran dikemaskini.");
-            closeModal('pinModal');
-        } catch(e) { alert("Ralat menyimpan rekod."); }
-    }
-
-    window.confirmDeleteUser = (id, name) => {
-        document.getElementById('modalTitle').innerText = "Padam Guru";
-        if(document.getElementById('manualOptions')) document.getElementById('manualOptions').style.display = 'none';
-        
-        document.getElementById('pinModal').style.display = 'flex';
-        document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = async () => {
-            if (document.getElementById('manualPinInput').value === ADMIN_PIN) { 
-                await deleteDoc(doc(db, "users", id)); 
-                alert(`Profil ${name} telah dipadam.`);
-                closeModal('pinModal'); 
-            } else alert("PIN Salah!");
-        };
-    };
-
+    // 8. UTILITI LAIN (THEME, EXCEL, LOGOUT)
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     
     window.toggleTheme = () => {
@@ -441,9 +445,7 @@
         if (u) { 
             document.getElementById('loginSection').style.display = 'none'; 
             document.getElementById('adminContent').style.display = 'block'; 
-            // Jalankan fungsi permulaan jika wujud dalam admin.html anda
-            if (typeof startRealTimeListeners === "function") startRealTimeListeners();
-            if (typeof initCamera === "function") initCamera();
+            initAdmin();
         } else { 
             document.getElementById('loginSection').style.display = 'block'; 
             document.getElementById('adminContent').style.display = 'none'; 
@@ -452,5 +454,3 @@
 </script>
 </body>
 </html>
-
-
