@@ -101,11 +101,22 @@
     const db = getFirestore(app);
 
     const DAILY_PIN = "123456"; 
+    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
     let registeredUsers = [];
     let isProcessing = false;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-    // FUNGSI 1: SAHKAN PIN
+    // PRE-LOAD AI MODELS
+    async function preload() {
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+            console.log("AI Models Ready");
+        } catch (e) { console.error("Model load error", e); }
+    }
+    preload();
+
     window.verifyPin = async function() {
         const pinInput = document.getElementById('pinInput').value;
         if(pinInput !== DAILY_PIN) {
@@ -114,26 +125,22 @@
         }
 
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Memulakan AI...";
+        document.getElementById('status').innerText = "Mengambil data profil...";
 
         try {
-            const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
-            
-            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-            
             const snap = await getDocs(collection(db, "users"));
-            snap.forEach(doc => registeredUsers.push(doc.data()));
+            // OPTIMASI: Convert descriptors to Float32Array once here
+            registeredUsers = snap.docs.map(doc => ({
+                name: doc.data().name,
+                descriptor: new Float32Array(doc.data().descriptor)
+            }));
             
             startCamera();
         } catch (err) { 
-            console.error(err);
-            alert("Ralat model AI: Sila pastikan talian internet stabil."); 
+            alert("Ralat sambungan: Sila pastikan talian internet stabil."); 
         }
-    }; // <--- Tadi anda tertinggal penutup di sini
+    };
 
-    // FUNGSI 2: MULAKAN KAMERA
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
         .then(stream => {
@@ -141,34 +148,36 @@
             video.srcObject = stream;
             video.style.display = "block";
             document.getElementById('status').innerText = "Sila halakan wajah ke kamera";
-            setInterval(scan, 1000); 
+            requestAnimationFrame(scan);
         })
         .catch(err => {
             alert("Gagal mengakses kamera: " + err.message);
         });
     }
 
-    // FUNGSI 3: IMBAS WAJAH
     async function scan() {
         if(isProcessing) return;
         const video = document.getElementById('video');
         
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        // Optimasi: Gunakan inputSize 128 untuk kelajuan
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
         
         if (detection) {
             for (let user of registeredUsers) {
-                const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.descriptor));
+                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
                 if (dist < 0.45) {
                     isProcessing = true;
                     beep.play();
                     saveAttendance(user.name);
-                    break;
+                    return; 
                 }
             }
         }
+        if(!isProcessing) requestAnimationFrame(scan);
     }
 
-    // FUNGSI 4: SIMPAN KE FIREBASE
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
@@ -207,17 +216,14 @@
             setTimeout(() => {
                 overlay.style.display = "none";
                 isProcessing = false;
+                requestAnimationFrame(scan); // Sambung scan selepas 3 saat
             }, 3000);
         } catch (e) {
-            console.error(e);
             alert("Ralat simpan data.");
             isProcessing = false;
+            requestAnimationFrame(scan);
         }
     }
 </script>
 </body>
 </html>
-
-
-
-
