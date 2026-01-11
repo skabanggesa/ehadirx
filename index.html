@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E-Hadir Digital V1.0 - Extreme</title>
+    <title>E-Hadir Digital V1.0</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
@@ -12,6 +12,7 @@
         :root { --primary: #0f172a; --accent: #3b82f6; --success: #22c55e; --bg: #f8fafc; }
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
         .container { width: 90%; max-width: 400px; background: white; padding: 30px; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); text-align: center; }
+        .logo { width: 80px; margin-bottom: 15px; }
         .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
         video { width: 100%; border-radius: 20px; background: #000; display: none; transform: scaleX(-1); border: 4px solid #fff; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .btn-main { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; font-size: 1rem; }
@@ -27,21 +28,19 @@
 </div>
 
 <div class="container">
+    <img src="ehadir.png" alt="Logo" class="logo">
     <h1 style="font-size: 1.4rem; margin: 0 0 5px 0;">E-HADIR DIGITAL</h1>
-    <p style="font-size: 0.7rem; color: #64748b; margin-bottom: 20px; letter-spacing: 1px;">SISTEM PENGESANAN PANTAS</p>
+    <p style="font-size: 0.7rem; color: #64748b; margin-bottom: 20px; letter-spacing: 1px;">EDISI PINTAR V1.0</p>
 
-    <div id="status" class="status-box">Menyediakan AI...</div>
+    <div id="status" class="status-box">Sila tunggu, memulakan AI...</div>
 
     <div id="pinSection" style="display:none;">
         <input type="password" id="pinInput" placeholder="KOD PIN 6-DIGIT" maxlength="6" inputmode="numeric">
-        <button class="btn-main" onclick="verifyPin()">AKTIFKAN KAMERA</button>
-        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 15px;">Data staf akan dikemaskini secara automatik.</p>
+        <button class="btn-main" onclick="verifyPin()">AKTIFKAN IMBASAN</button>
     </div>
 
     <video id="video" autoplay muted playsinline></video>
 </div>
-
-
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -60,93 +59,70 @@
     const db = getFirestore(app);
 
     const DAILY_PIN = "123456"; 
-    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/'; // Pautan model lebih stabil
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
     let registeredUsers = [];
     let isProcessing = false;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
     async function init() {
         try {
-            // Paksa penggunaan WebGL untuk kelajuan GPU
             if (faceapi.tf) await faceapi.tf.setBackend('webgl');
-            
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
 
-            // Ambil data dari Cache LocalStorage dulu (Sangat Pantas!)
-            const cachedData = localStorage.getItem('staff_data');
-            if (cachedData) {
-                const parsed = JSON.parse(cachedData);
-                registeredUsers = parsed.map(u => ({
+            // Load from Cache first
+            const cached = localStorage.getItem('staff_cache');
+            if (cached) {
+                registeredUsers = JSON.parse(cached).map(u => ({
                     name: u.name,
                     descriptor: new Float32Array(u.descriptor)
                 }));
-                console.log("Data dimuatkan dari cache");
             }
 
-            document.getElementById('status').innerText = "Sistem Sedia";
+            document.getElementById('status').innerText = "Sistem Sedia. Masukkan PIN.";
             document.getElementById('pinSection').style.display = "block";
             
-            // Kemaskini data Firebase di latar belakang (tanpa ganggu pengguna)
-            refreshUserCache();
-        } catch (e) {
-            document.getElementById('status').innerText = "Ralat: Periksa Internet";
-        }
+            // Sync Firebase in background
+            refreshCache();
+        } catch (e) { document.getElementById('status').innerText = "Ralat AI."; }
     }
 
-    async function refreshUserCache() {
-        try {
-            const snap = await getDocs(collection(db, "users"));
-            const dataToCache = snap.docs.map(doc => doc.data());
-            localStorage.setItem('staff_data', JSON.stringify(dataToCache));
-            
-            // Update senarai dalam memori
-            registeredUsers = dataToCache.map(u => ({
-                name: u.name,
-                descriptor: new Float32Array(u.descriptor)
-            }));
-            console.log("Cache diperbaharui dari Firebase");
-        } catch (e) { console.log("Gagal kemaskini cache"); }
+    async function refreshCache() {
+        const snap = await getDocs(collection(db, "users"));
+        const data = snap.docs.map(d => d.data());
+        localStorage.setItem('staff_cache', JSON.stringify(data));
+        registeredUsers = data.map(u => ({ name: u.name, descriptor: new Float32Array(u.descriptor) }));
     }
 
     window.verifyPin = async function() {
-        if(document.getElementById('pinInput').value !== DAILY_PIN) {
-            alert("PIN Salah!"); return;
-        }
+        if(document.getElementById('pinInput').value !== DAILY_PIN) { alert("PIN Salah!"); return; }
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Mencari Wajah...";
+        document.getElementById('status').innerText = "Sila halakan wajah...";
         startCamera();
     };
 
     function startCamera() {
-        // Gunakan resolusi paling optimum untuk AI
-        navigator.mediaDevices.getUserMedia({ 
-            video: { width: 320, height: 240, frameRate: { ideal: 15 } } 
-        })
+        navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } })
         .then(stream => {
             const video = document.getElementById('video');
             video.srcObject = stream;
             video.style.display = "block";
-            video.onplay = () => setTimeout(scan, 100);
+            video.onplay = () => scan();
         });
     }
 
     async function scan() {
         if (isProcessing) return;
         const video = document.getElementById('video');
-
-        // Pengesanan pantas dengan inputSize minimum
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128 }))
+            .withFaceLandmarks().withFaceDescriptor();
 
         if (detection) {
             for (let user of registeredUsers) {
-                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                if (dist < 0.45) {
+                if (faceapi.euclideanDistance(detection.descriptor, user.descriptor) < 0.45) {
                     isProcessing = true;
                     beep.play();
                     saveAttendance(user.name);
@@ -154,8 +130,6 @@
                 }
             }
         }
-        
-        // Loop lebih efisien dengan setTimeout (mengurangkan panas peranti)
         setTimeout(() => requestAnimationFrame(scan), 100);
     }
 
@@ -165,16 +139,26 @@
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
         try {
+            // PAPAR OVERLAY TERUS (Gives fast feel)
             const overlay = document.getElementById('overlay');
-            document.getElementById('overlayText').innerHTML = `KEHADIRAN DIREKOD<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} - ${now.toLocaleTimeString()}</span>`;
+            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} - ${now.toLocaleTimeString()}</span>`;
             overlay.style.display = "flex";
 
-            // Simpan ke Firebase secara asinkronus (tidak menyekat UI)
-            addDoc(collection(db, "attendance"), {
-                name: name,
-                timestamp: serverTimestamp(),
-                status: status
+            // LOGIK: CEK DUPLIKASI HARI INI
+            const q = query(collection(db, "attendance"), where("name", "==", name));
+            const snap = await getDocs(q);
+            let existingId = null;
+
+            snap.forEach(d => {
+                const ts = d.data().timestamp?.toDate();
+                if (ts && ts.toLocaleDateString('en-CA') === todayStr) existingId = d.id;
             });
+
+            if (existingId) {
+                await updateDoc(doc(db, "attendance", existingId), { timestamp: serverTimestamp(), status: status + " (Update)" });
+            } else {
+                await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
+            }
 
             setTimeout(() => {
                 overlay.style.display = "none";
