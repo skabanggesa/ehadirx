@@ -195,7 +195,6 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
             video.srcObject = stream;
             
-            // Set tarikh hari ini secara automatik
             const hariIni = new Date().toISOString().split('T')[0];
             document.getElementById('dateFilter').value = hariIni;
             
@@ -204,21 +203,20 @@
     }
 
     function startDataListeners() {
-        // Ambil Data Staf (Senarai Nama)
+        // Ambil Data Staf - Master List
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
             updateDashboard();
         });
 
-        // Ambil Data Kehadiran
+        // Ambil Data Kehadiran - Live Updates
         onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (snap) => {
             currentAttendance = {};
             snap.forEach(d => {
                 const data = d.data();
                 const ts = data.timestamp?.toDate();
                 if (ts) {
-                    // Pastikan format key sama dengan input date (YYYY-MM-DD)
                     const key = ts.toISOString().split('T')[0];
                     if (!currentAttendance[key]) currentAttendance[key] = [];
                     currentAttendance[key].push({ id: d.id, ...data });
@@ -233,27 +231,27 @@
         const search = document.getElementById('searchName').value.toLowerCase();
         const recordsToday = currentAttendance[filterDate] || [];
         
-        console.log(`Mengemaskini dashboard untuk tarikh: ${filterDate}. Jumpa ${recordsToday.length} rekod.`);
-
         let countHadir = 0, countLewat = 0;
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
 
+        // Paparkan SEMUA staf dari Master List
         allUsers.forEach(user => {
             if (search && !user.name.toLowerCase().includes(search)) return;
 
-            // Cari rekod yang sepadan dengan nama (abaikan ruang kosong dan huruf besar/kecil)
+            // Cari jika staf ada rekod imbasan hari ini
             const record = recordsToday.find(r => 
                 r.name.trim().toUpperCase() === user.name.trim().toUpperCase()
             );
 
+            // Default: Tiada Rekod
             let statusHTML = `<span class="tag tag-tidak">Tiada Rekod</span>`;
             let masaHTML = "--:--";
 
+            // Jika imbasan dikesan, kemaskini status & waktu
             if (record) {
                 countHadir++;
-                const jam = record.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-                masaHTML = jam;
+                masaHTML = record.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
                 
                 const stat = record.status || "Hadir";
                 const warna = stat.includes("Lewat") ? "tag-lewat" : "tag-hadir";
@@ -276,14 +274,12 @@
                 </tr>`;
         });
 
-        // Update Statistik
         document.getElementById('statTotal').innerText = allUsers.length;
         document.getElementById('statPresent').innerText = countHadir;
         document.getElementById('statLate').innerText = countLewat;
         document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
     };
 
-    // --- FUNGSI DAFTAR 3 SAMPEL ---
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const name = nameInput.value.trim().toUpperCase();
@@ -328,7 +324,29 @@
         statusLabel.style.color = "var(--accent)";
     };
 
-    // --- FUNGSI MODAL & PIN ---
+    window.clearAllAttendanceToday = async () => {
+        if (!confirm("AMARAN: Padam SEMUA rekod kehadiran untuk tarikh yang dipilih?")) return;
+        const pin = prompt("Sila masukkan PIN Admin untuk pengesahan:");
+        if (pin !== ADMIN_PIN) return alert("PIN SALAH!");
+
+        const selectedDate = document.getElementById('dateFilter').value;
+        const q = query(collection(db, "attendance"));
+        const snap = await getDocs(q);
+        
+        let count = 0;
+        const deletes = [];
+        snap.forEach(d => {
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toISOString().split('T')[0] === selectedDate) {
+                deletes.push(deleteDoc(doc(db, "attendance", d.id)));
+                count++;
+            }
+        });
+        
+        await Promise.all(deletes);
+        alert(`Berjaya memadam ${count} rekod bagi tarikh ${selectedDate}.`);
+    };
+
     window.openManualModal = (name) => {
         document.getElementById('modalTitle').innerText = "Edit Manual: " + name;
         document.getElementById('manualOptions').style.display = 'block';
@@ -357,7 +375,6 @@
         }
     };
 
-    // --- KALENDAR ---
     window.openIndividualCalendar = (name) => {
         currentViewedStaff = name;
         calDate = new Date();
@@ -376,20 +393,15 @@
         const month = calDate.getMonth();
         const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
         document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
-        
         const grid = document.getElementById('calendarGrid');
         grid.innerHTML = "";
         ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(d => grid.innerHTML += `<div class="calendar-day-label">${d}</div>`);
-        
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
-        
         for (let day = 1; day <= daysInMonth; day++) {
             const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const rec = (currentAttendance[key] || []).find(r => r.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase());
-            
             let dot = "";
             if (rec) {
                 if (rec.status.includes("Lewat")) dot = "dot-lewat";
@@ -400,7 +412,6 @@
         }
     }
 
-    // --- UTILITI ---
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     window.toggleTheme = () => {
         const current = document.body.getAttribute('data-theme');
@@ -430,4 +441,3 @@
 </script>
 </body>
 </html>
-
