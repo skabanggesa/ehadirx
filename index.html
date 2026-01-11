@@ -1,174 +1,395 @@
 <!DOCTYPE html>
+
 <html lang="ms">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E-Hadir Digital V1.0</title>
+
+    <title>Sistem Kehadiran Digital V1.0 - Turbo</title>
+
     
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
     
+
     <style>
+
         :root { --primary: #0f172a; --accent: #3b82f6; --success: #22c55e; --bg: #f8fafc; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-        .container { width: 90%; max-width: 400px; background: white; padding: 30px; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); text-align: center; }
+
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+        .container { width: 90%; max-width: 420px; background: white; padding: 40px 30px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center; }
+
         .logo { width: 80px; margin-bottom: 15px; }
-        .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-        video { width: 100%; border-radius: 20px; background: #000; display: none; transform: scaleX(-1); border: 4px solid #fff; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .btn-main { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; font-size: 1rem; }
-        .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: var(--success); }
-        input { width: 100%; padding: 16px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.2rem; text-align: center; box-sizing: border-box; }
+
+        h1 { font-size: 1.4rem; color: var(--primary); margin: 0; font-weight: 800; }
+
+        .status-box { padding: 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; margin-bottom: 25px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569; }
+
+        video { width: 100%; border-radius: 18px; background: #000; display: none; transform: scaleX(-1); }
+
+        input { width: 100%; padding: 16px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.1rem; text-align: center; box-sizing: border-box; }
+
+        .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; }
+
+        .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+
+        .bg-success { background: var(--success); }
+
     </style>
+
 </head>
+
 <body>
 
-<div id="overlay" class="overlay">
-    <div style="font-size: 5rem;">✅</div>
-    <div id="overlayText" style="font-size: 1.4rem; font-weight: 800; text-align: center; padding: 20px;"></div>
+
+
+<div id="overlay" class="overlay bg-success">
+
+    <div id="overlayIcon" style="font-size: 5rem; margin-bottom: 10px;">✅</div>
+
+    <div id="overlayText" style="font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px;"></div>
+
 </div>
+
+
 
 <div class="container">
-    <img src="ehadir.png" alt="Logo" class="logo">
-    <h1 style="font-size: 1.4rem; margin: 0 0 5px 0;">E-HADIR DIGITAL</h1>
-    <p style="font-size: 0.7rem; color: #64748b; margin-bottom: 20px; letter-spacing: 1px;">EDISI PINTAR V1.0</p>
 
-    <div id="status" class="status-box">Sila tunggu, memulakan AI...</div>
+    <img src="ehadir.png" alt="Logo" class="logo">
+
+    <h1>E-HADIR DIGITAL</h1>
+
+    <p style="font-size: 0.75rem; color: #64748b; margin-top: 5px; margin-bottom: 30px;">EDISI PINTAR V1.0</p>
+
+
+
+    <div id="status" class="status-box">Memulakan sistem AI...</div>
+
+
 
     <div id="pinSection" style="display:none;">
+
         <input type="password" id="pinInput" placeholder="KOD PIN 6-DIGIT" maxlength="6" inputmode="numeric">
+
         <button class="btn-main" onclick="verifyPin()">AKTIFKAN IMBASAN</button>
+
     </div>
 
+
+
     <video id="video" autoplay muted playsinline></video>
+
 </div>
 
+
+
 <script type="module">
+
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
     import { getFirestore, collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+
+
     const firebaseConfig = {
+
         apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
+
         authDomain: "portal-8368.firebaseapp.com",
+
         projectId: "portal-8368",
+
         storageBucket: "portal-8368.firebasestorage.app",
+
         messagingSenderId: "150403488308",
+
         appId: "1:150403488308:web:fac9b3c52dcd9975130861"
+
     };
+
+
 
     const app = initializeApp(firebaseConfig);
+
     const db = getFirestore(app);
 
+
+
     const DAILY_PIN = "123456"; 
-    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
+
+    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+
     let registeredUsers = [];
+
     let isProcessing = false;
+
+    let lastScanTime = 0;
+
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-    async function init() {
+
+
+    // 1. MUAT MODEL & WARM-UP
+
+    async function initSystem() {
+
         try {
-            if (faceapi.tf) await faceapi.tf.setBackend('webgl');
-            await Promise.all([
-                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-            ]);
 
-            // Load from Cache first
-            const cached = localStorage.getItem('staff_cache');
-            if (cached) {
-                registeredUsers = JSON.parse(cached).map(u => ({
-                    name: u.name,
-                    descriptor: new Float32Array(u.descriptor)
-                }));
-            }
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
 
-            document.getElementById('status').innerText = "Sistem Sedia. Masukkan PIN.";
-            document.getElementById('pinSection').style.display = "block";
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
             
-            // Sync Firebase in background
-            refreshCache();
-        } catch (e) { document.getElementById('status').innerText = "Ralat AI."; }
+
+            // Warm-up: Jalankan satu pengesanan kosong supaya enjin AI 'panas'
+
+            console.log("AI Warming up...");
+
+            const tempCanvas = document.createElement('canvas');
+
+            tempCanvas.width = 128; tempCanvas.height = 128;
+
+            await faceapi.detectSingleFace(tempCanvas, new faceapi.TinyFaceDetectorOptions());
+
+            
+
+            document.getElementById('status').innerText = "Sistem sedia. Masukkan PIN.";
+
+            document.getElementById('pinSection').style.display = "block";
+
+        } catch (e) {
+
+            document.getElementById('status').innerText = "Gagal memuatkan AI. Periksa internet.";
+
+        }
+
     }
 
-    async function refreshCache() {
-        const snap = await getDocs(collection(db, "users"));
-        const data = snap.docs.map(d => d.data());
-        localStorage.setItem('staff_cache', JSON.stringify(data));
-        registeredUsers = data.map(u => ({ name: u.name, descriptor: new Float32Array(u.descriptor) }));
-    }
+    initSystem();
+
+
 
     window.verifyPin = async function() {
-        if(document.getElementById('pinInput').value !== DAILY_PIN) { alert("PIN Salah!"); return; }
+
+        if(document.getElementById('pinInput').value !== DAILY_PIN) {
+
+            alert("PIN Salah!"); return;
+
+        }
+
+
+
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Sila halakan wajah...";
-        startCamera();
+
+        document.getElementById('status').innerText = "Memuatkan pangkalan data...";
+
+
+
+        try {
+
+            const snap = await getDocs(collection(db, "users"));
+
+            registeredUsers = snap.docs.map(doc => ({
+
+                name: doc.data().name,
+
+                descriptor: new Float32Array(doc.data().descriptor)
+
+            }));
+
+            startCamera();
+
+        } catch (err) { alert("Ralat data."); }
+
     };
 
+
+
     function startCamera() {
-        navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } })
+
+        // OPTIMASI: Kecilkan resolusi video ke 400x300 (AI tidak perlukan 1080p)
+
+        navigator.mediaDevices.getUserMedia({ 
+
+            video: { 
+
+                width: { ideal: 400 }, 
+
+                height: { ideal: 300 }, 
+
+                facingMode: "user" 
+
+            } 
+
+        })
+
         .then(stream => {
+
             const video = document.getElementById('video');
+
             video.srcObject = stream;
+
             video.style.display = "block";
-            video.onplay = () => scan();
+
+            document.getElementById('status').innerText = "Mencari wajah...";
+
+            requestAnimationFrame(scanLoop);
+
         });
+
     }
 
-    async function scan() {
-        if (isProcessing) return;
+
+
+    async function scanLoop(now) {
+
+        if(isProcessing) return;
+
+
+
+        // OPTIMASI: Throttling - Hanya imbas setiap 150ms (Kira-kira 6 imbasan sesaat)
+
+        // Ini mengelakkan CPU telefon menjadi 100% dan tersekat-sekat
+
+        if (!lastScanTime || now - lastScanTime >= 150) {
+
+            lastScanTime = now;
+
+            await doScan();
+
+        }
+
+        
+
+        requestAnimationFrame(scanLoop);
+
+    }
+
+
+
+    async function doScan() {
+
         const video = document.getElementById('video');
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128 }))
-            .withFaceLandmarks().withFaceDescriptor();
+
+        
+
+        // Optimasi: scoreThreshold 0.5 supaya AI tidak membuang masa pada wajah kabur
+
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 }))
+
+            .withFaceLandmarks()
+
+            .withFaceDescriptor();
+
+        
 
         if (detection) {
+
             for (let user of registeredUsers) {
-                if (faceapi.euclideanDistance(detection.descriptor, user.descriptor) < 0.45) {
+
+                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
+
+                if (dist < 0.45) { // 0.45 adalah tahap sensitiviti standard
+
                     isProcessing = true;
+
                     beep.play();
+
                     saveAttendance(user.name);
-                    return;
+
+                    return; 
+
                 }
+
             }
+
         }
-        setTimeout(() => requestAnimationFrame(scan), 100);
+
     }
+
+
 
     async function saveAttendance(name) {
+
         const now = new Date();
+
         const todayStr = now.toLocaleDateString('en-CA');
+
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
+
         
+
         try {
-            // PAPAR OVERLAY TERUS (Gives fast feel)
-            const overlay = document.getElementById('overlay');
-            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} - ${now.toLocaleTimeString()}</span>`;
-            overlay.style.display = "flex";
 
-            // LOGIK: CEK DUPLIKASI HARI INI
-            const q = query(collection(db, "attendance"), where("name", "==", name));
-            const snap = await getDocs(q);
-            let existingId = null;
+            const qAtt = query(collection(db, "attendance"), where("name", "==", name));
 
-            snap.forEach(d => {
-                const ts = d.data().timestamp?.toDate();
-                if (ts && ts.toLocaleDateString('en-CA') === todayStr) existingId = d.id;
+            const querySnapshot = await getDocs(qAtt);
+
+            let existingDocId = null;
+
+
+
+            querySnapshot.forEach((doc) => {
+
+                const data = doc.data();
+
+                const ts = data.timestamp?.toDate();
+
+                if (ts && ts.toLocaleDateString('en-CA') === todayStr) existingDocId = doc.id;
+
             });
 
-            if (existingId) {
-                await updateDoc(doc(db, "attendance", existingId), { timestamp: serverTimestamp(), status: status + " (Update)" });
+
+
+            if (existingDocId) {
+
+                await updateDoc(doc(db, "attendance", existingDocId), { timestamp: serverTimestamp(), status: status + " (Update)" });
+
             } else {
+
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
+
             }
 
+
+
+            const overlay = document.getElementById('overlay');
+
+            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
+
+            overlay.style.display = "flex";
+
+            
+
             setTimeout(() => {
+
                 overlay.style.display = "none";
+
                 isProcessing = false;
-                scan();
+
+                lastScanTime = 0; // Reset timer
+
             }, 3000);
-        } catch (e) { isProcessing = false; }
+
+        } catch (e) {
+
+            isProcessing = false;
+
+        }
+
     }
 
-    init();
 </script>
+
 </body>
+
 </html>
