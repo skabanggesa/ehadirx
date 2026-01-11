@@ -292,7 +292,7 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // 4. DAFTAR GURU (DIOPTIMUMKAN: 3 SAMPEL WAJAH)
+// GANTIKAN KESELURUHAN FUNGSI REGISTER DENGAN INI
 window.register = async () => {
     const nameInput = document.getElementById('staffName');
     const name = nameInput.value.trim().toUpperCase();
@@ -300,46 +300,54 @@ window.register = async () => {
 
     const statusLabel = document.getElementById('regStatus');
     const video = document.getElementById('adminVideo');
-    let descriptors = []; // Kita akan simpan sebagai Array of Objects
+    let descriptors = []; // Senarai untuk simpan 3 sampel
 
+    // 1. Proses mengambil 3 sampel wajah
     for (let i = 1; i <= 3; i++) {
         statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
+        statusLabel.style.color = "var(--warning)";
+
+        // Tunggu 0.8 saat untuk beri ruang pengguna sedia
         await new Promise(r => setTimeout(r, 800));
 
         const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
             .withFaceLandmarks().withFaceDescriptor();
 
         if (det) {
-            // PERUBAHAN DI SINI: Bungkus dalam object { d: ... }
+            // Simpan dalam format Object supaya Firestore tidak ralat (Nested Array fix)
             descriptors.push({ d: Array.from(det.descriptor) });
         } else {
-            alert(`Sampel ${i} gagal. Wajah tidak jelas.`);
+            alert(`Sampel ${i} gagal dikesan. Pastikan wajah jelas di depan kamera.`);
             statusLabel.innerText = "AI SEDIA";
-            return;
+            statusLabel.style.color = "var(--accent)";
+            return; // Berhenti jika satu sampel gagal
         }
-    }
+    } // Tamat Loop
 
+    // 2. Simpan data ke Firestore
     try {
         const q = query(collection(db, "users"), where("name", "==", name));
         const snap = await getDocs(q);
 
         if (!snap.empty) {
             const docId = snap.docs[0].id;
-            if(confirm(`Nama ${name} sudah ada. Kemaskini data wajah?`)) {
-                // Gunakan nama field 'descriptors' (jamak)
+            if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
                 await updateDoc(doc(db, "users", docId), { descriptors: descriptors });
-                alert("Berjaya kemaskini!");
+                alert("Berjaya kemaskini 3 sampel wajah!");
             }
         } else {
             await addDoc(collection(db, "users"), { name, descriptors });
-            alert("Pendaftaran Berjaya!");
+            alert("Pendaftaran Berjaya dengan 3 sampel wajah!");
         }
         nameInput.value = "";
     } catch (e) {
+        console.error(e);
         alert("Ralat Firestore: " + e.message);
     }
+    
     statusLabel.innerText = "AI SEDIA";
-};
+    statusLabel.style.color = "var(--accent)";
+}; // Tutup Function Register
 
         // Simpan ke Firestore
         try {
@@ -497,4 +505,5 @@ window.register = async () => {
 </script>
 </body>
 </html>
+
 
