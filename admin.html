@@ -206,10 +206,8 @@
     let calDate = new Date();
     let currentViewedStaff = "";
 
-    // 1. FUNGSI PERMULAAN
     async function initAdmin() {
         try {
-            console.log("Loading models...");
             await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
             await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
             await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
@@ -220,13 +218,9 @@
             
             document.getElementById('dateFilter').valueAsDate = new Date();
             startDataListeners();
-        } catch (err) {
-            console.error("Initialization Error:", err);
-            alert("Ralat memulakan kamera atau model AI.");
-        }
+        } catch (err) { alert("Ralat memulakan kamera."); }
     }
 
-    // 2. REAL-TIME DATA LISTENERS
     function startDataListeners() {
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -250,7 +244,6 @@
         });
     }
 
-    // 3. KEMASKINI PAPARAN UTAMA
     window.updateDashboard = () => {
         const selectedDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
@@ -292,64 +285,32 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-// GANTIKAN KESELURUHAN FUNGSI REGISTER DENGAN INI
-window.register = async () => {
-    const nameInput = document.getElementById('staffName');
-    const name = nameInput.value.trim().toUpperCase();
-    if (!name) return alert("Sila masukkan nama guru!");
+    window.register = async () => {
+        const nameInput = document.getElementById('staffName');
+        const name = nameInput.value.trim().toUpperCase();
+        if (!name) return alert("Sila masukkan nama guru!");
 
-    const statusLabel = document.getElementById('regStatus');
-    const video = document.getElementById('adminVideo');
-    let descriptors = []; // Senarai untuk simpan 3 sampel
+        const statusLabel = document.getElementById('regStatus');
+        const video = document.getElementById('adminVideo');
+        let descriptors = [];
 
-    // 1. Proses mengambil 3 sampel wajah
-    for (let i = 1; i <= 3; i++) {
-        statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
-        statusLabel.style.color = "var(--warning)";
+        for (let i = 1; i <= 3; i++) {
+            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
+            statusLabel.style.color = "var(--warning)";
+            await new Promise(r => setTimeout(r, 800));
 
-        // Tunggu 0.8 saat untuk beri ruang pengguna sedia
-        await new Promise(r => setTimeout(r, 800));
+            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
+                .withFaceLandmarks().withFaceDescriptor();
 
-        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
-            .withFaceLandmarks().withFaceDescriptor();
-
-        if (det) {
-            // Simpan dalam format Object supaya Firestore tidak ralat (Nested Array fix)
-            descriptors.push({ d: Array.from(det.descriptor) });
-        } else {
-            alert(`Sampel ${i} gagal dikesan. Pastikan wajah jelas di depan kamera.`);
-            statusLabel.innerText = "AI SEDIA";
-            statusLabel.style.color = "var(--accent)";
-            return; // Berhenti jika satu sampel gagal
-        }
-    } // Tamat Loop
-
-    // 2. Simpan data ke Firestore
-    try {
-        const q = query(collection(db, "users"), where("name", "==", name));
-        const snap = await getDocs(q);
-
-        if (!snap.empty) {
-            const docId = snap.docs[0].id;
-            if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
-                await updateDoc(doc(db, "users", docId), { descriptors: descriptors });
-                alert("Berjaya kemaskini 3 sampel wajah!");
+            if (det) {
+                descriptors.push({ d: Array.from(det.descriptor) });
+            } else {
+                alert(`Sampel ${i} gagal dikesan.`);
+                statusLabel.innerText = "AI SEDIA";
+                return;
             }
-        } else {
-            await addDoc(collection(db, "users"), { name, descriptors });
-            alert("Pendaftaran Berjaya dengan 3 sampel wajah!");
         }
-        nameInput.value = "";
-    } catch (e) {
-        console.error(e);
-        alert("Ralat Firestore: " + e.message);
-    }
-    
-    statusLabel.innerText = "AI SEDIA";
-    statusLabel.style.color = "var(--accent)";
-}; // Tutup Function Register
 
-        // Simpan ke Firestore
         try {
             const q = query(collection(db, "users"), where("name", "==", name));
             const snap = await getDocs(q);
@@ -358,22 +319,19 @@ window.register = async () => {
                 const docId = snap.docs[0].id;
                 if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
                     await updateDoc(doc(db, "users", docId), { descriptors: descriptors });
-                    alert("Berjaya kemaskini 3 sampel wajah!");
+                    alert("Berjaya kemaskini!");
                 }
             } else {
                 await addDoc(collection(db, "users"), { name, descriptors });
-                alert("Pendaftaran Berjaya dengan 3 sampel wajah!");
+                alert("Pendaftaran Berjaya!");
             }
             nameInput.value = "";
-        } catch (e) {
-            alert("Ralat Firestore: " + e.message);
-        }
+        } catch (e) { alert("Ralat Firestore: " + e.message); }
         
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
 
-    // 5. KEHADIRAN MANUAL
     window.openManualModal = (name) => {
         document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
         document.getElementById('manualOptions').style.display = 'block';
@@ -397,31 +355,25 @@ window.register = async () => {
         });
 
         try {
-            if (existingId) {
-                await updateDoc(doc(db, "attendance", existingId), { status, timestamp: serverTimestamp() });
-            } else {
-                await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
-            }
+            if (existingId) { await updateDoc(doc(db, "attendance", existingId), { status, timestamp: serverTimestamp() }); } 
+            else { await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() }); }
             alert("Berjaya dikemaskini.");
             closeModal('pinModal');
         } catch(e) { alert("Ralat menyimpan."); }
     }
 
-    // 6. PADAM DATA
     window.clearAllAttendanceToday = async () => {
         const selDate = document.getElementById('dateFilter').value;
         if (!confirm(`Padam SEMUA kehadiran pada ${selDate}?`)) return;
         if (prompt("Masukkan PIN ADMIN:") !== ADMIN_PIN) return alert("PIN Salah!");
 
-        try {
-            const q = collection(db, "attendance");
-            const snap = await getDocs(q);
-            for (const d of snap.docs) {
-                const ts = d.data().timestamp?.toDate();
-                if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
-            }
-            alert(`Selesai memadam rekod tarikh ${selDate}.`);
-        } catch (e) { alert("Ralat memadam."); }
+        const q = collection(db, "attendance");
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
+        }
+        alert(`Selesai memadam rekod tarikh ${selDate}.`);
     };
 
     window.confirmDeleteUser = (id, name) => {
@@ -432,13 +384,11 @@ window.register = async () => {
         document.getElementById('pinSubmitBtn').onclick = async () => {
             if (document.getElementById('manualPinInput').value === ADMIN_PIN) { 
                 await deleteDoc(doc(db, "users", id)); 
-                alert(`Profil ${name} dipadam.`);
                 closeModal('pinModal'); 
             } else alert("PIN Salah!");
         };
     };
 
-    // 7. KALENDAR INDIVIDU
     window.openIndividualCalendar = (name) => {
         currentViewedStaff = name; calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
@@ -469,27 +419,20 @@ window.register = async () => {
         }
     }
 
-    // 8. UTILITI
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
-    
     window.toggleTheme = () => {
         const current = document.body.getAttribute('data-theme');
         document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
     };
-
     window.exportExcel = () => {
         const table = document.getElementById("reportTable");
-        const dateVal = document.getElementById('dateFilter')?.value || "Laporan";
-        XLSX.writeFile(XLSX.utils.table_to_book(table), `Laporan_Kehadiran_${dateVal}.xlsx`);
+        XLSX.writeFile(XLSX.utils.table_to_book(table), `Laporan_Kehadiran.xlsx`);
     };
-
     window.handleLogin = async () => { 
         const email = document.getElementById('loginEmail').value;
         const pass = document.getElementById('loginPass').value;
-        try { await signInWithEmailAndPassword(auth, email, pass); } 
-        catch(e) { alert("Log masuk gagal!"); } 
+        try { await signInWithEmailAndPassword(auth, email, pass); } catch(e) { alert("Gagal!"); } 
     };
-
     window.handleLogout = () => signOut(auth);
 
     onAuthStateChanged(auth, u => {
@@ -505,5 +448,3 @@ window.register = async () => {
 </script>
 </body>
 </html>
-
-
