@@ -293,34 +293,53 @@
     }
 
     // 4. DAFTAR GURU (DIOPTIMUMKAN: 3 SAMPEL WAJAH)
-    window.register = async () => {
-        const nameInput = document.getElementById('staffName');
-        const name = nameInput.value.trim().toUpperCase();
-        if (!name) return alert("Sila masukkan nama guru!");
+window.register = async () => {
+    const nameInput = document.getElementById('staffName');
+    const name = nameInput.value.trim().toUpperCase();
+    if (!name) return alert("Sila masukkan nama guru!");
 
-        const statusLabel = document.getElementById('regStatus');
-        const video = document.getElementById('adminVideo');
-        let descriptors = [];
+    const statusLabel = document.getElementById('regStatus');
+    const video = document.getElementById('adminVideo');
+    let descriptors = []; // Kita akan simpan sebagai Array of Objects
 
-        // Gelung untuk mengambil 3 sampel
-        for (let i = 1; i <= 3; i++) {
-            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
-            statusLabel.style.color = "var(--warning)";
+    for (let i = 1; i <= 3; i++) {
+        statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
+        await new Promise(r => setTimeout(r, 800));
 
-            // Tunggu sebentar supaya pengguna boleh sedia
-            await new Promise(r => setTimeout(r, 800));
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
+            .withFaceLandmarks().withFaceDescriptor();
 
-            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
-                .withFaceLandmarks().withFaceDescriptor();
-
-            if (det) {
-                descriptors.push(Array.from(det.descriptor));
-            } else {
-                alert(`Sampel ${i} gagal dikesan. Sila pastikan wajah jelas menghadap kamera.`);
-                statusLabel.innerText = "AI SEDIA";
-                return;
-            }
+        if (det) {
+            // PERUBAHAN DI SINI: Bungkus dalam object { d: ... }
+            descriptors.push({ d: Array.from(det.descriptor) });
+        } else {
+            alert(`Sampel ${i} gagal. Wajah tidak jelas.`);
+            statusLabel.innerText = "AI SEDIA";
+            return;
         }
+    }
+
+    try {
+        const q = query(collection(db, "users"), where("name", "==", name));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+            const docId = snap.docs[0].id;
+            if(confirm(`Nama ${name} sudah ada. Kemaskini data wajah?`)) {
+                // Gunakan nama field 'descriptors' (jamak)
+                await updateDoc(doc(db, "users", docId), { descriptors: descriptors });
+                alert("Berjaya kemaskini!");
+            }
+        } else {
+            await addDoc(collection(db, "users"), { name, descriptors });
+            alert("Pendaftaran Berjaya!");
+        }
+        nameInput.value = "";
+    } catch (e) {
+        alert("Ralat Firestore: " + e.message);
+    }
+    statusLabel.innerText = "AI SEDIA";
+};
 
         // Simpan ke Firestore
         try {
@@ -478,3 +497,4 @@
 </script>
 </body>
 </html>
+
