@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E-Hadir Digital V1.0 - Extreme</title>
+    <title>E-Hadir Digital V1.0 - HyperDrive</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
@@ -14,9 +14,10 @@
         .container { width: 90%; max-width: 400px; background: white; padding: 30px; border-radius: 28px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); text-align: center; }
         .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
         video { width: 100%; border-radius: 20px; background: #000; display: none; transform: scaleX(-1); border: 4px solid #fff; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .btn-main { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; font-size: 1rem; }
+        .btn-main { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; font-size: 1rem; transition: 0.3s; }
+        .btn-main:active { transform: scale(0.98); }
         .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; background: var(--success); }
-        input { width: 100%; padding: 16px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.2rem; text-align: center; box-sizing: border-box; }
+        input { width: 100%; padding: 16px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.2rem; text-align: center; box-sizing: border-box; font-family: inherit; }
     </style>
 </head>
 <body>
@@ -27,21 +28,19 @@
 </div>
 
 <div class="container">
-    <h1 style="font-size: 1.4rem; margin: 0 0 5px 0;">E-HADIR DIGITAL</h1>
-    <p style="font-size: 0.7rem; color: #64748b; margin-bottom: 20px; letter-spacing: 1px;">SISTEM PENGESANAN PANTAS</p>
+    <h1 style="font-size: 1.4rem; margin: 0 0 5px 0;">E-HADIR <span style="color:var(--accent)">DIGITAL</span></h1>
+    <p style="font-size: 0.7rem; color: #64748b; margin-bottom: 20px; letter-spacing: 1px;">PENGESANAN WAJAH HYPER-DRIVE</p>
 
-    <div id="status" class="status-box">Menyediakan AI...</div>
+    <div id="status" class="status-box">Memulakan AI...</div>
 
     <div id="pinSection" style="display:none;">
         <input type="password" id="pinInput" placeholder="KOD PIN 6-DIGIT" maxlength="6" inputmode="numeric">
         <button class="btn-main" onclick="verifyPin()">AKTIFKAN KAMERA</button>
-        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 15px;">Data staf akan dikemaskini secara automatik.</p>
+        <p style="font-size: 0.65rem; color: #94a3b8; margin-top: 15px;">Sistem akan memuatkan data staf secara automatik.</p>
     </div>
 
     <video id="video" autoplay muted playsinline></video>
 </div>
-
-
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -60,15 +59,20 @@
     const db = getFirestore(app);
 
     const DAILY_PIN = "123456"; 
-    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/'; // Pautan model lebih stabil
-    let registeredUsers = [];
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
+    
+    let faceMatcher = null; 
     let isProcessing = false;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+    // 1. INISIALISASI & OPTIMASI GPU
     async function init() {
         try {
-            // Paksa penggunaan WebGL untuk kelajuan GPU
-            if (faceapi.tf) await faceapi.tf.setBackend('webgl');
+            // Aktifkan WebGL untuk kelajuan GPU
+            if (faceapi.tf) {
+                await faceapi.tf.setBackend('webgl');
+                await faceapi.tf.ready();
+            }
             
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -76,25 +80,36 @@
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
 
-            // Ambil data dari Cache LocalStorage dulu (Sangat Pantas!)
+            // Muat data dari Cache
             const cachedData = localStorage.getItem('staff_data');
             if (cachedData) {
-                const parsed = JSON.parse(cachedData);
-                registeredUsers = parsed.map(u => ({
-                    name: u.name,
-                    descriptor: new Float32Array(u.descriptor)
-                }));
+                prepareFaceMatcher(JSON.parse(cachedData));
                 console.log("Data dimuatkan dari cache");
             }
 
-            document.getElementById('status').innerText = "Sistem Sedia";
+            // --- OPTIMASI: WARM-UP ENJIN ---
+            // Jalankan satu imbasan dummy supaya CPU/GPU 'panas'
+            const dummyCanvas = document.createElement('canvas');
+            dummyCanvas.width = 128; dummyCanvas.height = 128;
+            await faceapi.detectSingleFace(dummyCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 128 }));
+            
+            document.getElementById('status').innerText = "Sistem Sedia (Pantas)";
             document.getElementById('pinSection').style.display = "block";
             
-            // Kemaskini data Firebase di latar belakang (tanpa ganggu pengguna)
-            refreshUserCache();
+            refreshUserCache(); // Kemaskini data di latar belakang
         } catch (e) {
-            document.getElementById('status').innerText = "Ralat: Periksa Internet";
+            document.getElementById('status').innerText = "Ralat AI: Periksa Internet";
         }
+    }
+
+    // 2. FACEMATCHER (LOGIK MATRIKS PANTAS)
+    function prepareFaceMatcher(data) {
+        if (!data || data.length === 0) return;
+        const labeledDescriptors = data.map(u => {
+            return new faceapi.LabeledFaceDescriptors(u.name, [new Float32Array(u.descriptor)]);
+        });
+        // Threshold 0.45: Keseimbangan antara ketepatan dan kelajuan
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
     }
 
     async function refreshUserCache() {
@@ -102,14 +117,9 @@
             const snap = await getDocs(collection(db, "users"));
             const dataToCache = snap.docs.map(doc => doc.data());
             localStorage.setItem('staff_data', JSON.stringify(dataToCache));
-            
-            // Update senarai dalam memori
-            registeredUsers = dataToCache.map(u => ({
-                name: u.name,
-                descriptor: new Float32Array(u.descriptor)
-            }));
+            prepareFaceMatcher(dataToCache);
             console.log("Cache diperbaharui dari Firebase");
-        } catch (e) { console.log("Gagal kemaskini cache"); }
+        } catch (e) { console.error("Gagal kemaskini cache"); }
     }
 
     window.verifyPin = async function() {
@@ -117,14 +127,17 @@
             alert("PIN Salah!"); return;
         }
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Mencari Wajah...";
+        document.getElementById('status').innerText = "Mengesan Wajah...";
         startCamera();
     };
 
     function startCamera() {
-        // Gunakan resolusi paling optimum untuk AI
         navigator.mediaDevices.getUserMedia({ 
-            video: { width: 320, height: 240, frameRate: { ideal: 15 } } 
+            video: { 
+                width: 320, 
+                height: 240, 
+                frameRate: { ideal: 20 } // Frame rate lebih tinggi untuk respon "smooth"
+            } 
         })
         .then(stream => {
             const video = document.getElementById('video');
@@ -134,42 +147,43 @@
         });
     }
 
+    // 3. SCANNING LOOP (OPTIMASI TINGGI)
     async function scan() {
         if (isProcessing) return;
         const video = document.getElementById('video');
 
-        // Pengesanan pantas dengan inputSize minimum
+        // Gunakan inputSize 128 untuk kelajuan maksimum
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
 
-        if (detection) {
-            for (let user of registeredUsers) {
-                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                if (dist < 0.45) {
-                    isProcessing = true;
-                    beep.play();
-                    saveAttendance(user.name);
-                    return;
-                }
+        if (detection && faceMatcher) {
+            // Gunakan FaceMatcher (Sangat Pantas berbanding FOR Loop)
+            const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+            
+            if (bestMatch.label !== 'unknown') {
+                isProcessing = true;
+                beep.play();
+                saveAttendance(bestMatch.label);
+                return;
             }
         }
         
-        // Loop lebih efisien dengan setTimeout (mengurangkan panas peranti)
-        setTimeout(() => requestAnimationFrame(scan), 100);
+        // Loop setiap 60ms (Cukup laju tetapi tidak memanaskan telefon secara melampau)
+        setTimeout(() => requestAnimationFrame(scan), 60);
     }
 
     async function saveAttendance(name) {
         const now = new Date();
-        const todayStr = now.toLocaleDateString('en-CA');
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
-        try {
-            const overlay = document.getElementById('overlay');
-            document.getElementById('overlayText').innerHTML = `KEHADIRAN DIREKOD<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} - ${now.toLocaleTimeString()}</span>`;
-            overlay.style.display = "flex";
+        // Tunjuk overlay serta-merta untuk respon pantas
+        const overlay = document.getElementById('overlay');
+        document.getElementById('overlayText').innerHTML = `REKOD DITERIMA<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} - ${now.toLocaleTimeString()}</span>`;
+        overlay.style.display = "flex";
 
-            // Simpan ke Firebase secara asinkronus (tidak menyekat UI)
+        try {
+            // Simpan ke Firebase (di latar belakang)
             addDoc(collection(db, "attendance"), {
                 name: name,
                 timestamp: serverTimestamp(),
@@ -179,9 +193,12 @@
             setTimeout(() => {
                 overlay.style.display = "none";
                 isProcessing = false;
-                scan();
+                scan(); // Sambung imbasan
             }, 3000);
-        } catch (e) { isProcessing = false; }
+        } catch (e) { 
+            isProcessing = false; 
+            overlay.style.display = "none";
+        }
     }
 
     init();
