@@ -42,12 +42,14 @@
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background: var(--card); padding: 30px; border-radius: 24px; border: 1px solid var(--border); max-width: 90%; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-        .calendar-cell { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; position: relative; }
+        .calendar-day-label { font-size: 0.6rem; text-align: center; font-weight: 800; color: #64748b; padding-bottom: 5px; }
+        .calendar-cell { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; position: relative; min-width: 40px; }
         .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; }
         .dot-hadir { background: var(--success); }
         .dot-lewat { background: var(--warning); }
+        .dot-cuti { background: var(--accent); }
         #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
-        #regStatus { font-size: 0.75rem; font-weight: 800; text-align: center; margin-top: 8px; color: var(--accent); }
+        #regStatus { font-size: 0.7rem; font-weight: 700; text-align: center; margin-top: 5px; color: var(--accent); }
     </style>
 </head>
 <body>
@@ -115,8 +117,9 @@
                 <h2>👤 Daftar Guru Baru</h2>
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <div id="regStatus">AI SEDIA</div>
-                <input type="text" id="staffName" placeholder="Nama Penuh (Huruf Besar)" class="login-input" style="margin-top:10px;">
+                <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI (3 SAMPEL)</button>
+                <p style="font-size: 0.6rem; color: #64748b; margin-top: 5px; text-align: center;">Sistem akan mengambil 3 sampel wajah secara automatik.</p>
                 <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
             </div>
 
@@ -182,6 +185,7 @@
     let calDate = new Date();
     let currentViewedStaff = "";
 
+    // 1. INITIALIZE ADMIN
     async function initAdmin() {
         try {
             await Promise.all([
@@ -190,13 +194,14 @@
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
             const video = document.getElementById('adminVideo');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
             video.srcObject = stream;
             document.getElementById('dateFilter').valueAsDate = new Date();
             startDataListeners();
-        } catch (err) { console.error(err); }
+        } catch (err) { alert("Ralat kamera atau model AI."); }
     }
 
+    // 2. DATA LISTENERS
     function startDataListeners() {
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -204,7 +209,7 @@
             updateDashboard();
         });
 
-        onSnapshot(collection(db, "attendance"), (snap) => {
+        onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (snap) => {
             currentAttendance = {};
             snap.forEach(d => {
                 const data = d.data();
@@ -216,15 +221,17 @@
                 }
             });
             updateDashboard();
+            if (document.getElementById('calendarModal').style.display === 'flex') renderCalendar();
         });
     }
 
+    // 3. DASHBOARD UPDATE
     window.updateDashboard = () => {
         const selectedDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
         const records = currentAttendance[selectedDate] || [];
-        let present = 0, late = 0;
         
+        let present = 0, late = 0;
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
 
@@ -248,7 +255,7 @@
                     <td>${timeStr}</td>
                     <td>${statusTag}</td>
                     <td style="text-align:right;">
-                        <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px;">Edit</button>
+                        <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
                         <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
                     </td>
                 </tr>`;
@@ -260,17 +267,18 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
+    // 4. REGISTER GURU (3 SAMPEL)
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const name = nameInput.value.trim().toUpperCase();
-        if (!name) return alert("Sila masukkan nama!");
+        if (!name) return alert("Sila masukkan nama guru!");
 
         const statusLabel = document.getElementById('regStatus');
         const video = document.getElementById('adminVideo');
         let descriptors = [];
 
         for (let i = 1; i <= 3; i++) {
-            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA`;
+            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
             statusLabel.style.color = "var(--warning)";
             await new Promise(r => setTimeout(r, 800));
 
@@ -291,9 +299,9 @@
             const snap = await getDocs(q);
 
             if (!snap.empty) {
-                if(confirm(`Kemaskini data wajah ${name}?`)) {
-                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors });
-                    alert("Berjaya dikemaskini!");
+                if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
+                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors: descriptors });
+                    alert("Berjaya kemaskini!");
                 }
             } else {
                 await addDoc(collection(db, "users"), { name, descriptors });
@@ -306,8 +314,9 @@
         statusLabel.style.color = "var(--accent)";
     };
 
+    // 5. MANUAL EDIT & DELETE
     window.openManualModal = (name) => {
-        document.getElementById('modalTitle').innerText = "Edit Kehadiran";
+        document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
         document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
@@ -319,19 +328,51 @@
         const status = document.getElementById('statusSelect').value;
         const selDate = document.getElementById('dateFilter').value;
         
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        let existingId = null;
+        
+        snap.forEach(d => { 
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) existingId = d.id; 
+        });
+
         try {
-            await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
-            alert("Berjaya.");
+            if (existingId) { await updateDoc(doc(db, "attendance", existingId), { status, timestamp: serverTimestamp() }); } 
+            else { await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() }); }
+            alert("Berjaya dikemaskini.");
             closeModal('pinModal');
-        } catch(e) { alert("Ralat."); }
+        } catch(e) { alert("Ralat menyimpan."); }
     }
 
     window.confirmDeleteUser = (id, name) => {
-        if (prompt(`Taip 'PADAM' untuk sahkan pemadaman ${name}`) === 'PADAM') {
-            deleteDoc(doc(db, "users", id));
-        }
+        document.getElementById('modalTitle').innerText = "Padam Guru";
+        document.getElementById('manualOptions').style.display = 'none';
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('pinSubmitBtn').onclick = async () => {
+            if (document.getElementById('manualPinInput').value === ADMIN_PIN) { 
+                await deleteDoc(doc(db, "users", id)); 
+                closeModal('pinModal'); 
+            } else alert("PIN Salah!");
+        };
     };
 
+    window.clearAllAttendanceToday = async () => {
+        const selDate = document.getElementById('dateFilter').value;
+        if (!confirm(`Padam SEMUA kehadiran pada ${selDate}?`)) return;
+        if (prompt("Masukkan PIN ADMIN:") !== ADMIN_PIN) return alert("PIN Salah!");
+
+        const q = collection(db, "attendance");
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
+        }
+        alert(`Selesai memadam rekod tarikh ${selDate}.`);
+    };
+
+    // 6. KALENDAR INDIVIDU
     window.openIndividualCalendar = (name) => {
         currentViewedStaff = name; calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
@@ -346,36 +387,38 @@
         const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
         document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
         const grid = document.getElementById('calendarGrid'); grid.innerHTML = "";
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(day => { grid.innerHTML += `<div class="calendar-day-label">${day}</div>`; });
+        const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
         for (let day = 1; day <= daysInMonth; day++) {
             const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const rec = (currentAttendance[dStr] || []).find(r => r.name === currentViewedStaff);
-            let dot = rec ? (rec.status.includes("Lewat") ? "dot-lewat" : "dot-hadir") : "";
+            let dot = "";
+            if (rec) {
+                if (rec.status.includes("Lewat")) dot = "dot-lewat";
+                else if (rec.status.includes("Hadir")) dot = "dot-hadir";
+                else dot = "dot-cuti";
+            }
             grid.innerHTML += `<div class="calendar-cell">${day}${dot ? `<div class="dot ${dot}"></div>` : ''}</div>`;
         }
     }
 
-    window.clearAllAttendanceToday = async () => {
-        const selDate = document.getElementById('dateFilter').value;
-        if (!confirm(`Padam SEMUA kehadiran pada ${selDate}?`)) return;
-        const q = collection(db, "attendance");
-        const snap = await getDocs(q);
-        snap.forEach(async d => {
-            const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
-        });
-        alert("Selesai dipadam.");
-    };
-
+    // 7. UTILITI LAIN
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
-    window.toggleTheme = () => { document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); };
+    window.toggleTheme = () => {
+        const current = document.body.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+    };
+    window.exportExcel = () => {
+        const table = document.getElementById("reportTable");
+        XLSX.writeFile(XLSX.utils.table_to_book(table), `Laporan_Kehadiran.xlsx`);
+    };
     window.handleLogin = async () => { 
         const email = document.getElementById('loginEmail').value;
         const pass = document.getElementById('loginPass').value;
         try { await signInWithEmailAndPassword(auth, email, pass); } catch(e) { alert("Gagal Log Masuk!"); } 
     };
     window.handleLogout = () => signOut(auth);
-    window.exportExcel = () => { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `Laporan.xlsx`); };
 
     onAuthStateChanged(auth, u => {
         if (u) { 
