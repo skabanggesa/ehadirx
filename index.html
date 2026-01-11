@@ -108,35 +108,37 @@
         document.getElementById('status').innerText = "Menyusun data wajah...";
 
         try {
-            const snap = await getDocs(collection(db, "users"));
-            const labeledDescriptors = [];
+        const snap = await getDocs(collection(db, "users"));
+        const labeledDescriptors = [];
 
-            snap.forEach(doc => {
-                const data = doc.data();
-                // Sokongan untuk data lama (1 descriptor) atau data baru (Array descriptors)
-                if (data.descriptor) {
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, [new Float32Array(data.descriptor)]));
-                } else if (data.descriptors) {
-                    const descArray = data.descriptors.map(d => new Float32Array(d));
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, descArray));
-                }
-            });
-
-            if (labeledDescriptors.length === 0) {
-                alert("Tiada guru didaftarkan lagi.");
-                location.reload();
-                return;
+        snap.forEach(doc => {
+            const data = doc.data();
+            
+            // 1. Sokongan data lama (jika ada)
+            if (data.descriptor) {
+                labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, [new Float32Array(data.descriptor)]));
+            } 
+            // 2. Sokongan data baru (3 sampel)
+            else if (data.descriptors) {
+                // PERUBAHAN DI SINI: Ambil nilai dari d.d
+                const descArray = data.descriptors.map(item => new Float32Array(item.d));
+                labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, descArray));
             }
+        });
 
-            // FaceMatcher dengan threshold 0.45 (lebih rendah = lebih ketat)
-            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
-            startCamera();
-        } catch (err) { 
-            console.error(err);
-            alert("Ralat memuatkan data dari pangkalan data."); 
+        if (labeledDescriptors.length === 0) {
+            alert("Tiada guru didaftarkan.");
+            location.reload();
+            return;
         }
-    };
 
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
+        startCamera();
+    } catch (err) { 
+        alert("Ralat data."); 
+    }
+};
+    
     // 3. KAMERA DENGAN RESOLUSI OPTIMUM
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ 
@@ -240,3 +242,4 @@
 </script>
 </body>
 </html>
+
