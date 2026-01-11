@@ -62,7 +62,6 @@
         .tag-hadir { background: #d1fae5; color: #065f46; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
 
-        /* MODAL CSS */
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.6);
             display: none; justify-content: center; align-items: center; z-index: 1000;
@@ -110,6 +109,7 @@
         <div style="display: flex; flex-direction: column; gap: 25px;">
             <div class="card">
                 <h2>Daftar Wajah Baru</h2>
+                <p id="regStatus" style="font-size: 0.7rem; color: var(--accent);">Memuatkan AI...</p>
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <input type="text" id="staffName" placeholder="Nama Penuh Guru" class="login-input" style="margin-top:15px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
@@ -117,13 +117,11 @@
 
             <div class="card">
                 <h2>Senarai Staf & Manual</h2>
-                
                 <div id="staffListLocked" style="text-align: center; padding: 30px 10px;">
                     <div style="font-size: 2.5rem; margin-bottom: 10px;">🔒</div>
                     <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 15px;">Bahagian ini dikunci untuk privasi.</p>
                     <button onclick="openUnlockModal()" class="btn btn-excel" style="font-size: 0.75rem;">BUKA SENARAI</button>
                 </div>
-
                 <div id="staffListContent" style="display: none;">
                     <div style="max-height: 300px; overflow-y: auto;">
                         <table style="width: 100%;">
@@ -162,7 +160,7 @@
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDocs, where, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const firebaseConfig = {
+    const firebaseConfig = { /* Kekalkan config anda */
         apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
         authDomain: "portal-8368.firebaseapp.com",
         projectId: "portal-8368",
@@ -174,12 +172,22 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
 
     let allUsers = [];
     let attendanceLogs = {};
     let pendingManualName = "";
 
-    // 1. AUTH CHECK
+    // PRELOAD MODELS
+    async function loadModels() {
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        const regStatus = document.getElementById('regStatus');
+        if(regStatus) regStatus.innerText = "AI Sedia";
+    }
+    loadModels();
+
     onAuthStateChanged(auth, (user) => {
         if (user) {
             document.getElementById('loginSection').style.display = 'none';
@@ -192,13 +200,18 @@
         }
     });
 
-    // 2. REAL-TIME LISTENERS
+    async function initCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            document.getElementById('adminVideo').srcObject = stream;
+        } catch (e) { console.error("Kamera ralat:", e); }
+    }
+
     function startRealTimeListeners() {
         onSnapshot(collection(db, "users"), (snapshot) => {
             allUsers = [];
             const staffList = document.getElementById('staffListBody');
             staffList.innerHTML = "";
-            
             snapshot.forEach(d => {
                 const u = { id: d.id, ...d.data() };
                 allUsers.push(u);
@@ -218,11 +231,9 @@
         onSnapshot(qAtt, (snapshot) => {
             attendanceLogs = {};
             const today = new Date().toLocaleDateString('en-CA');
-
             snapshot.forEach(d => {
                 const data = d.data();
                 const ts = data.timestamp ? data.timestamp.toDate() : new Date();
-                
                 if(ts.toLocaleDateString('en-CA') === today) {
                     if (!attendanceLogs[data.name]) {
                         attendanceLogs[data.name] = { 
@@ -237,12 +248,10 @@
         });
     }
 
-    // 3. RENDER JADUAL
     function renderAttendanceTable() {
         const tbody = document.getElementById('tableBody');
         if(!tbody) return;
         tbody.innerHTML = "";
-
         allUsers.forEach(u => {
             const log = attendanceLogs[u.name];
             tbody.innerHTML += `
@@ -255,39 +264,21 @@
         });
     }
 
-    async function initCamera() {
-        try {
-            const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
-            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            document.getElementById('adminVideo').srcObject = stream;
-        } catch (e) { console.error("Ralat kamera:", e); }
-    }
-
-    // LOGIK UNLOCK SENARAI
+    // SEMUA LOGIK WINDOW (Dikekalkan)
     window.openUnlockModal = () => {
         document.getElementById('modalTitle').innerText = "Buka Kunci Senarai";
         document.getElementById('modalDesc').innerText = "Masukkan Kod Akses '1234'";
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
-        document.getElementById('manualPinInput').focus();
-        
-        // Tukar fungsi butang kepada verifyUnlock
         document.getElementById('pinSubmitBtn').onclick = window.verifyUnlockPin;
     };
 
     window.verifyUnlockPin = () => {
-        const pin = document.getElementById('manualPinInput').value;
-        if(pin === "1234") {
+        if(document.getElementById('manualPinInput').value === "1234") {
             document.getElementById('staffListLocked').style.display = 'none';
             document.getElementById('staffListContent').style.display = 'block';
             closePinModal();
-        } else {
-            alert("Kod Akses Salah!");
-            document.getElementById('manualPinInput').value = "";
-        }
+        } else { alert("Kod Akses Salah!"); }
     };
 
     window.lockStaffList = () => {
@@ -295,27 +286,19 @@
         document.getElementById('staffListContent').style.display = 'none';
     };
 
-    // LOGIK HADIR MANUAL (KEKAL ASAL TAPI TUKAR BUTANG MODAL)
     window.markManual = (name) => {
         pendingManualName = name;
         document.getElementById('modalTitle').innerText = "Sahkan Hadir Manual";
-        document.getElementById('modalDesc').innerText = `Masukkan Kod Pin untuk ${name}`;
+        document.getElementById('modalDesc').innerText = `Masukkan Pin untuk ${name}`;
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
-        document.getElementById('manualPinInput').focus();
-        
-        // Tukar fungsi butang kepada verifyManualPin
         document.getElementById('pinSubmitBtn').onclick = window.verifyManualPin;
     };
 
-    window.closePinModal = () => {
-        document.getElementById('pinModal').style.display = 'none';
-        pendingManualName = "";
-    };
+    window.closePinModal = () => { document.getElementById('pinModal').style.display = 'none'; };
 
     window.verifyManualPin = async () => {
-        const pin = document.getElementById('manualPinInput').value;
-        if(pin === "1234") {
+        if(document.getElementById('manualPinInput').value === "1234") {
             const name = pendingManualName;
             closePinModal();
             const todayStr = new Date().toLocaleDateString('en-CA');
@@ -333,12 +316,9 @@
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: "Hadir (Manual)" });
             }
             alert("Berjaya dikemaskini.");
-        } else {
-            alert("Kod Akses Salah!");
-        }
+        } else { alert("Kod Akses Salah!"); }
     };
 
-    // FUNGSI REGISTER & LAIN-LAIN
     window.handleLogin = async () => {
         try {
             await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
@@ -349,22 +329,19 @@
 
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
-        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (detection && nameInput.value) {
+        if(!nameInput.value) { alert("Masukkan nama!"); return; }
+        
+        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })).withFaceLandmarks().withFaceDescriptor();
+        
+        if (detection) {
             await addDoc(collection(db, "users"), { name: nameInput.value, descriptor: Array.from(detection.descriptor) });
             alert("Identiti Wajah Berjaya Disimpan");
             nameInput.value = "";
-        } else { alert("Wajah tidak dikesan / Nama kosong!"); }
+        } else { alert("Wajah tidak dikesan!"); }
     };
 
-    window.deleteUser = async (id, name) => {
-        if(confirm(`Padam profil ${name}?`)) await deleteDoc(doc(db, "users", id));
-    };
-
-    window.deleteRecord = async (id) => {
-        if(confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id));
-    };
-
+    window.deleteUser = async (id, name) => { if(confirm(`Padam profil ${name}?`)) await deleteDoc(doc(db, "users", id)); };
+    window.deleteRecord = async (id) => { if(confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id)); };
     window.exportExcel = () => {
         const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
         XLSX.writeFile(wb, `Laporan_${new Date().toLocaleDateString()}.xlsx`);
