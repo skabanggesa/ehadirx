@@ -139,7 +139,8 @@
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <div id="regStatus">AI Sedia</div>
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
-                <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
+                <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI (3 SAMPEL)</button>
+                <p style="font-size: 0.6rem; color: #64748b; margin-top: 5px; text-align: center;">Sistem akan mengambil 3 gambar wajah secara automatik untuk kelajuan maksimum.</p>
                 <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
             </div>
 
@@ -185,14 +186,14 @@
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
-  authDomain: "e-hadir-ba989.firebaseapp.com",
-  projectId: "e-hadir-ba989",
-  storageBucket: "e-hadir-ba989.firebasestorage.app",
-  messagingSenderId: "777207462690",
-  appId: "1:777207462690:web:0c65d249532428bea6437b",
-  measurementId: "G-062X22JHXY"
-};
+        apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
+        authDomain: "e-hadir-ba989.firebaseapp.com",
+        projectId: "e-hadir-ba989",
+        storageBucket: "e-hadir-ba989.firebasestorage.app",
+        messagingSenderId: "777207462690",
+        appId: "1:777207462690:web:0c65d249532428bea6437b",
+        measurementId: "G-062X22JHXY"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -205,7 +206,7 @@
     let calDate = new Date();
     let currentViewedStaff = "";
 
-    // 1. FUNGSI PERMULAAN (LOAD MODELS & KAMERA)
+    // 1. FUNGSI PERMULAAN
     async function initAdmin() {
         try {
             console.log("Loading models...");
@@ -214,7 +215,7 @@
             await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             
             const video = document.getElementById('adminVideo');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
             video.srcObject = stream;
             
             document.getElementById('dateFilter').valueAsDate = new Date();
@@ -291,49 +292,56 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // 4. DAFTAR GURU (ANTI-DUPLICATE)
+    // 4. DAFTAR GURU (DIOPTIMUMKAN: 3 SAMPEL WAJAH)
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const name = nameInput.value.trim().toUpperCase();
-        
         if (!name) return alert("Sila masukkan nama guru!");
 
         const statusLabel = document.getElementById('regStatus');
-        statusLabel.innerText = "⌛ SEDANG MENGESAN WAJAH...";
-        statusLabel.style.color = "var(--warning)";
+        const video = document.getElementById('adminVideo');
+        let descriptors = [];
 
-        const det = await faceapi.detectSingleFace(
-            document.getElementById('adminVideo'), 
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
-        ).withFaceLandmarks().withFaceDescriptor();
+        // Gelung untuk mengambil 3 sampel
+        for (let i = 1; i <= 3; i++) {
+            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
+            statusLabel.style.color = "var(--warning)";
 
-        if (det) {
-            try {
-                const q = query(collection(db, "users"), where("name", "==", name));
-                const snap = await getDocs(q);
+            // Tunggu sebentar supaya pengguna boleh sedia
+            await new Promise(r => setTimeout(r, 800));
 
-                if (!snap.empty) {
-                    const docId = snap.docs[0].id;
-                    if(confirm(`Nama ${name} sudah ada dalam sistem. Kemaskini data wajah?`)) {
-                        await updateDoc(doc(db, "users", docId), {
-                            descriptor: Array.from(det.descriptor)
-                        });
-                        alert("Data wajah dikemaskini!");
-                    }
-                } else {
-                    await addDoc(collection(db, "users"), { 
-                        name: name, 
-                        descriptor: Array.from(det.descriptor) 
-                    });
-                    alert("Guru berjaya didaftarkan!");
-                }
-                nameInput.value = "";
-            } catch (e) {
-                alert("Ralat Firestore: " + e.message);
+            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
+                .withFaceLandmarks().withFaceDescriptor();
+
+            if (det) {
+                descriptors.push(Array.from(det.descriptor));
+            } else {
+                alert(`Sampel ${i} gagal dikesan. Sila pastikan wajah jelas menghadap kamera.`);
+                statusLabel.innerText = "AI SEDIA";
+                return;
             }
-        } else {
-            alert("Wajah tidak dikesan! Pastikan anda berada di depan kamera.");
         }
+
+        // Simpan ke Firestore
+        try {
+            const q = query(collection(db, "users"), where("name", "==", name));
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                const docId = snap.docs[0].id;
+                if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
+                    await updateDoc(doc(db, "users", docId), { descriptors: descriptors });
+                    alert("Berjaya kemaskini 3 sampel wajah!");
+                }
+            } else {
+                await addDoc(collection(db, "users"), { name, descriptors });
+                alert("Pendaftaran Berjaya dengan 3 sampel wajah!");
+            }
+            nameInput.value = "";
+        } catch (e) {
+            alert("Ralat Firestore: " + e.message);
+        }
+        
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
@@ -349,7 +357,6 @@
 
     async function submitManual(name) {
         if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
-        
         const status = document.getElementById('statusSelect').value;
         const selDate = document.getElementById('dateFilter').value;
         
@@ -373,63 +380,23 @@
         } catch(e) { alert("Ralat menyimpan."); }
     }
 
-    // A. PADAM REKOD KEHADIRAN INDIVIDU (PADA TARIKH DIPILIH)
-window.deleteSingleAttendance = async (name) => {
-    const selDate = document.getElementById('dateFilter').value;
-    if (!confirm(`Padam rekod kehadiran ${name} pada tarikh ${selDate}?`)) return;
+    // 6. PADAM DATA
+    window.clearAllAttendanceToday = async () => {
+        const selDate = document.getElementById('dateFilter').value;
+        if (!confirm(`Padam SEMUA kehadiran pada ${selDate}?`)) return;
+        if (prompt("Masukkan PIN ADMIN:") !== ADMIN_PIN) return alert("PIN Salah!");
 
-    try {
-        const q = query(collection(db, "attendance"), where("name", "==", name));
-        const snap = await getDocs(q);
-        
-        let found = false;
-        snap.forEach(async (d) => {
-            const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) {
-                await deleteDoc(doc(db, "attendance", d.id));
-                found = true;
+        try {
+            const q = collection(db, "attendance");
+            const snap = await getDocs(q);
+            for (const d of snap.docs) {
+                const ts = d.data().timestamp?.toDate();
+                if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
             }
-        });
+            alert(`Selesai memadam rekod tarikh ${selDate}.`);
+        } catch (e) { alert("Ralat memadam."); }
+    };
 
-        if (found) {
-            alert("Rekod kehadiran berjaya dipadam.");
-        } else {
-            alert("Tiada rekod kehadiran ditemui untuk tarikh ini.");
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Ralat memadam rekod.");
-    }
-};
-
-// B. PADAM SEMUA REKOD KEHADIRAN PADA TARIKH DIPILIH
-window.clearAllAttendanceToday = async () => {
-    const selDate = document.getElementById('dateFilter').value;
-    if (!confirm(`AMARAN: Ini akan memadam SEMUA kehadiran staf pada ${selDate}. Teruskan?`)) return;
-
-    if (prompt("Sila masukkan PIN ADMIN untuk sahkan:") !== ADMIN_PIN) {
-        return alert("PIN Salah!");
-    }
-
-    try {
-        const q = collection(db, "attendance");
-        const snap = await getDocs(q);
-        let count = 0;
-
-        for (const d of snap.docs) {
-            const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) {
-                await deleteDoc(doc(db, "attendance", d.id));
-                count++;
-            }
-        }
-        alert(`Berjaya memadam ${count} rekod pada tarikh ${selDate}.`);
-    } catch (e) {
-        alert("Ralat memadam data.");
-    }
-};
-
-    // 6. PADAM GURU
     window.confirmDeleteUser = (id, name) => {
         document.getElementById('modalTitle').innerText = "Padam Guru";
         document.getElementById('manualOptions').style.display = 'none';
@@ -475,7 +442,7 @@ window.clearAllAttendanceToday = async () => {
         }
     }
 
-    // 8. UTILITI LAIN (THEME, EXCEL, LOGOUT)
+    // 8. UTILITI
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     
     window.toggleTheme = () => {
@@ -492,9 +459,8 @@ window.clearAllAttendanceToday = async () => {
     window.handleLogin = async () => { 
         const email = document.getElementById('loginEmail').value;
         const pass = document.getElementById('loginPass').value;
-        try { 
-            await signInWithEmailAndPassword(auth, email, pass); 
-        } catch(e) { alert("Log masuk gagal! Sila semak emel dan kata laluan."); } 
+        try { await signInWithEmailAndPassword(auth, email, pass); } 
+        catch(e) { alert("Log masuk gagal!"); } 
     };
 
     window.handleLogout = () => signOut(auth);
@@ -512,5 +478,3 @@ window.clearAllAttendanceToday = async () => {
 </script>
 </body>
 </html>
-
-
