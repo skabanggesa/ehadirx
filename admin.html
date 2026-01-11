@@ -3,153 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pentadbir | Sistem Kehadiran V1.0</title>
+    <title>Pentadbir Pro | E-Hadir</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary: #0f172a;
-            --accent: #2563eb;
-            --danger: #ef4444;
-            --success: #10b981;
-            --bg: #f8fafc;
+            --primary: #0f172a; --accent: #2563eb; --danger: #ef4444; --success: #10b981;
+            --warning: #f59e0b; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0;
         }
 
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: var(--primary); }
+        [data-theme="dark"] {
+            --bg: #020617; --card: #1e293b; --text: #f1f5f9; --border: #334155; --primary: #3b82f6;
+        }
+
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); transition: 0.3s; }
         
-        #loginSection { 
-            max-width: 380px; margin: 100px auto; background: white; 
-            padding: 40px; border-radius: 24px; text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);
-        }
-        .login-input { 
-            width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #e2e8f0; 
-            border-radius: 12px; box-sizing: border-box; font-size: 1rem;
-        }
-
+        /* Layout */
         .header { 
             display: flex; align-items: center; justify-content: space-between; 
-            background: white; padding: 15px 5%; border-bottom: 1px solid #e2e8f0;
+            background: var(--card); padding: 15px 5%; border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100;
         }
 
-        .main-container { padding: 30px 5%; display: grid; grid-template-columns: 1fr; gap: 25px; }
+        .main-container { padding: 25px 5%; display: grid; grid-template-columns: 1fr; gap: 25px; }
+        @media (min-width: 1200px) { .main-container { grid-template-columns: 350px 1fr; } }
 
-        .card { 
-            background: white; padding: 25px; border-radius: 20px; 
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }
+        /* Dashboard Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: var(--card); padding: 20px; border-radius: 20px; border: 1px solid var(--border); text-align: center; }
+        .stat-card h4 { margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+        .stat-card p { margin: 10px 0 0; font-size: 1.8rem; font-weight: 800; color: var(--accent); }
 
-        h2 { font-size: 0.9rem; margin-top: 0; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; font-weight: 800; }
+        .card { background: var(--card); padding: 25px; border-radius: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        h2 { font-size: 1rem; margin-top: 0; margin-bottom: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
 
         video { width: 100%; border-radius: 16px; background: #000; transform: scaleX(-1); }
+        .login-input, select { 
+            width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); 
+            border-radius: 12px; box-sizing: border-box; background: var(--bg); color: var(--text);
+        }
 
-        .btn { padding: 12px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: 0.2s; }
-        .btn:active { transform: scale(0.98); }
-        .btn-save { background: var(--accent); color: white; width: 100%; margin-top: 15px; }
-        .btn-excel { background: var(--primary); color: white; }
-        .btn-logout { background: #fee2e2; color: var(--danger); }
-        .btn-manual { background: #dcfce7; color: #166534; padding: 6px 12px; font-size: 0.75rem; }
-        .btn-del-user { background: #fff1f2; color: #be123c; padding: 6px 12px; font-size: 0.75rem; }
+        .btn { padding: 10px 18px; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-save { background: var(--accent); color: white; width: 100%; justify-content: center; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
         
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.75rem; border-bottom: 2px solid #f1f5f9; text-transform: uppercase; }
-        td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.7rem; border-bottom: 2px solid var(--border); text-transform: uppercase; }
+        td { padding: 14px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 
-        .status-tag { padding: 5px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
+        .tag { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
         .tag-hadir { background: #d1fae5; color: #065f46; }
+        .tag-lewat { background: #fef3c7; color: #92400e; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
 
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-            display: none; justify-content: center; align-items: center; z-index: 1000;
-            backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background: white; padding: 30px; border-radius: 20px; width: 300px; text-align: center;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-        }
-
-        @media (min-width: 1024px) { 
-            .main-container { grid-template-columns: 380px 1fr; }
-        }
+        #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: var(--card); padding: 30px; border-radius: 24px; width: 340px; border: 1px solid var(--border); }
     </style>
 </head>
 <body>
 
 <div id="pinModal" class="modal-overlay">
     <div class="modal-content">
-        <h3 id="modalTitle" style="margin-top:0;">Kod Akses</h3>
-        <p id="modalDesc" style="font-size: 0.8rem; color: #666;">Sila masukkan kod pengesahan</p>
-        <input type="password" id="manualPinInput" class="login-input" placeholder="****" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
-            <button onclick="closePinModal()" class="btn" style="flex:1; background:#eee;">Batal</button>
-            <button id="pinSubmitBtn" class="btn" style="flex:1; background:var(--accent); color:white;">Sahkan</button>
+        <h3 id="modalTitle" style="margin:0 0 10px 0;">Sahkan Tindakan</h3>
+        <p id="modalDesc" style="font-size: 0.8rem; color: #64748b; margin-bottom: 15px;"></p>
+        <div id="manualOptions" style="display:none;">
+            <select id="statusSelect" class="login-input">
+                <option value="Hadir (Manual)">Hadir Manual</option>
+                <option value="Kursus/Tugas Luar">Kursus/Tugas Luar</option>
+                <option value="Cuti Sakit (MC)">Cuti Sakit (MC)</option>
+                <option value="Cuti Rehat (CRK)">Cuti Rehat (CRK)</option>
+            </select>
+        </div>
+        <input type="password" id="manualPinInput" class="login-input" placeholder="Kod PIN Admin" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Batal</button>
+            <button id="pinSubmitBtn" class="btn btn-save" style="flex:1;">Sahkan</button>
         </div>
     </div>
 </div>
 
 <div id="loginSection">
     <img src="ehadir.png" alt="Logo" style="width:60px; margin-bottom:20px;">
-    <h2 style="color:var(--primary)">Akses Pentadbir</h2>
-    <input type="email" id="loginEmail" class="login-input" placeholder="Emel Rasmi">
+    <h2>Pentadbir Sistem</h2>
+    <input type="email" id="loginEmail" class="login-input" placeholder="Emel Admin">
     <input type="password" id="loginPass" class="login-input" placeholder="Kata Laluan">
-    <button onclick="handleLogin()" class="btn btn-save">LOG MASUK</button>
+    <button onclick="handleLogin()" class="btn btn-save" style="margin-top:10px;">LOG MASUK</button>
 </div>
 
 <div id="adminContent" style="display:none;">
     <div class="header">
-        <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px;">E-HADIR ADMIN</div>
-        <button class="btn btn-logout" onclick="handleLogout()">LOG KELUAR</button>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <img src="ehadir.png" alt="Logo" style="width:35px;">
+            <span style="font-weight: 800; font-size: 1.1rem;">E-HADIR <span style="color:var(--accent)">PRO</span></span>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button onclick="toggleTheme()" class="btn btn-outline">🌓</button>
+            <button onclick="handleLogout()" class="btn btn-outline" style="color:var(--danger)">Keluar</button>
+        </div>
     </div>
 
     <div class="main-container">
-        <div style="display: flex; flex-direction: column; gap: 25px;">
+        <div style="display: flex; flex-direction: column; gap: 20px;">
             <div class="card">
-                <h2>Daftar Wajah Baru</h2>
-                <p id="regStatus" style="font-size: 0.7rem; color: var(--accent);">Memuatkan AI...</p>
+                <h2>👤 Daftar Guru Baru</h2>
                 <video id="adminVideo" autoplay muted playsinline></video>
-                <input type="text" id="staffName" placeholder="Nama Penuh Guru" class="login-input" style="margin-top:15px;">
+                <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
+                <p id="regStatus" style="font-size: 0.65rem; color: #64748b; margin-top: 10px; text-align: center;">Pastikan pencahayaan cukup untuk imbasan tepat.</p>
             </div>
 
             <div class="card">
-                <h2>Senarai Staf & Manual</h2>
-                <div id="staffListLocked" style="text-align: center; padding: 30px 10px;">
-                    <div style="font-size: 2.5rem; margin-bottom: 10px;">🔒</div>
-                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 15px;">Bahagian ini dikunci untuk privasi.</p>
-                    <button onclick="openUnlockModal()" class="btn btn-excel" style="font-size: 0.75rem;">BUKA SENARAI</button>
-                </div>
-                <div id="staffListContent" style="display: none;">
-                    <div style="max-height: 300px; overflow-y: auto;">
-                        <table style="width: 100%;">
-                            <tbody id="staffListBody"></tbody>
-                        </table>
-                    </div>
-                    <button onclick="lockStaffList()" class="btn" style="width:100%; margin-top:15px; background:#f1f5f9; color:#64748b; font-size:0.7rem;">KUNCI SEMULA</button>
-                </div>
+                <h2>🔍 Carian & Arkib</h2>
+                <input type="date" id="dateFilter" class="login-input" onchange="filterRecords()">
+                <input type="text" id="searchName" class="login-input" placeholder="Cari nama guru..." onkeyup="filterRecords()">
+                <button onclick="exportExcel()" class="btn btn-outline" style="width:100%; margin-top:10px; justify-content:center;">📥 Muat Turun Excel</button>
             </div>
         </div>
 
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h2 style="margin:0;">Laporan Kehadiran Hari Ini</h2>
-                <button onclick="exportExcel()" class="btn btn-excel">MUAT TURUN EXCEL</button>
+        <div>
+            <div class="stats-grid">
+                <div class="stat-card"><h4>Jumlah Staf</h4><p id="statTotal">0</p></div>
+                <div class="stat-card"><h4>Hadir</h4><p id="statPresent" style="color:var(--success)">0</p></div>
+                <div class="stat-card"><h4>Lewat</h4><p id="statLate" style="color:var(--warning)">0</p></div>
+                <div class="stat-card"><h4>Tiada Rekod</h4><p id="statAbsent" style="color:var(--danger)">0</p></div>
             </div>
-            <div style="overflow-x: auto;">
-                <table id="reportTable">
-                    <thead>
-                        <tr>
-                            <th>Guru / Kakitangan</th>
-                            <th>Masa</th>
-                            <th>Status</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
+
+            <div class="card" style="margin-bottom: 25px;">
+                <h2>📊 Analisis Kehadiran (7 Hari)</h2>
+                <canvas id="attendanceChart" height="100"></canvas>
+            </div>
+
+            <div class="card">
+                <h2>📋 Laporan Kehadiran</h2>
+                <div style="overflow-x: auto;">
+                    <table id="reportTable">
+                        <thead>
+                            <tr>
+                                <th>Nama Guru</th>
+                                <th>Waktu</th>
+                                <th>Status</th>
+                                <th style="text-align:right;">Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -160,7 +163,7 @@
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDocs, where, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const firebaseConfig = { /* Kekalkan config anda */
+    const firebaseConfig = {
         apiKey: "AIzaSyCwh99Ui4KPXgC-W-CpCg-edYnHN3aVmrk",
         authDomain: "portal-8368.firebaseapp.com",
         projectId: "portal-8368",
@@ -172,151 +175,193 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
     let allUsers = [];
-    let attendanceLogs = {};
-    let pendingManualName = "";
+    let currentAttendance = {};
+    let chartInstance = null;
+    const ADMIN_PIN = "1234";
 
-    // PRELOAD MODELS
-    async function loadModels() {
+    // 1. INITIALIZE ADMIN
+    async function initAdmin() {
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        const regStatus = document.getElementById('regStatus');
-        if(regStatus) regStatus.innerText = "AI Sedia";
-    }
-    loadModels();
-
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('adminContent').style.display = 'block';
-            startRealTimeListeners(); 
-            initCamera();
-        } else {
-            document.getElementById('loginSection').style.display = 'block';
-            document.getElementById('adminContent').style.display = 'none';
-        }
-    });
-
-    async function initCamera() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            document.getElementById('adminVideo').srcObject = stream;
-        } catch (e) { console.error("Kamera ralat:", e); }
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('adminVideo').srcObject = stream;
+        
+        document.getElementById('dateFilter').valueAsDate = new Date();
+        startDataListeners();
     }
 
-    function startRealTimeListeners() {
-        onSnapshot(collection(db, "users"), (snapshot) => {
-            allUsers = [];
-            const staffList = document.getElementById('staffListBody');
-            staffList.innerHTML = "";
-            snapshot.forEach(d => {
-                const u = { id: d.id, ...d.data() };
-                allUsers.push(u);
-                staffList.innerHTML += `
-                    <tr>
-                        <td><strong>${u.name}</strong></td>
-                        <td style="text-align:right;">
-                            <button onclick="markManual('${u.name}')" class="btn btn-manual">HADIR</button>
-                            <button onclick="deleteUser('${d.id}', '${u.name}')" class="btn btn-del-user">🗑️</button>
-                        </td>
-                    </tr>`;
-            });
-            renderAttendanceTable();
+    // 2. DATA LISTENERS (REAL-TIME)
+    function startDataListeners() {
+        // Listen to Users
+        onSnapshot(collection(db, "users"), (snap) => {
+            allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            updateDashboard();
         });
 
-        const qAtt = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-        onSnapshot(qAtt, (snapshot) => {
-            attendanceLogs = {};
-            const today = new Date().toLocaleDateString('en-CA');
-            snapshot.forEach(d => {
+        // Listen to Attendance
+        onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (snap) => {
+            currentAttendance = {};
+            snap.forEach(d => {
                 const data = d.data();
-                const ts = data.timestamp ? data.timestamp.toDate() : new Date();
-                if(ts.toLocaleDateString('en-CA') === today) {
-                    if (!attendanceLogs[data.name]) {
-                        attendanceLogs[data.name] = { 
-                            time: ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), 
-                            status: data.status, 
-                            id: d.id 
-                        };
-                    }
-                }
+                const dateKey = data.timestamp?.toDate().toLocaleDateString('en-CA');
+                if (!currentAttendance[dateKey]) currentAttendance[dateKey] = [];
+                currentAttendance[dateKey].push({ id: d.id, ...data });
             });
-            renderAttendanceTable();
+            updateDashboard();
+            renderChart();
         });
     }
 
-    function renderAttendanceTable() {
+    // 3. DASHBOARD LOGIC
+    function updateDashboard() {
+        const selectedDate = document.getElementById('dateFilter').value;
+        const search = document.getElementById('searchName').value.toLowerCase();
+        const records = currentAttendance[selectedDate] || [];
+        
+        let present = 0, late = 0;
         const tbody = document.getElementById('tableBody');
-        if(!tbody) return;
         tbody.innerHTML = "";
-        allUsers.forEach(u => {
-            const log = attendanceLogs[u.name];
+
+        allUsers.forEach(user => {
+            if (search && !user.name.toLowerCase().includes(search)) return;
+
+            const record = records.find(r => r.name === user.name);
+            let statusTag = `<span class="tag tag-tidak">Tiada Rekod</span>`;
+            let timeStr = "--:--";
+            
+            if (record) {
+                present++;
+                timeStr = record.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                if (record.status.includes("Lewat")) {
+                    late++;
+                    statusTag = `<span class="tag tag-lewat">${record.status}</span>`;
+                } else {
+                    statusTag = `<span class="tag tag-hadir">${record.status}</span>`;
+                }
+            }
+
             tbody.innerHTML += `
                 <tr>
-                    <td><strong>${u.name}</strong></td>
-                    <td>${log ? log.time : '--:--'}</td>
-                    <td><span class="status-tag ${log ? 'tag-hadir' : 'tag-tidak'}">${log ? log.status : 'Belum Hadir'}</span></td>
-                    <td style="text-align:right;">${log ? `<button onclick="deleteRecord('${log.id}')" style="color:red; background:none; border:none; cursor:pointer;">Padam</button>` : ''}</td>
+                    <td><strong>${user.name}</strong></td>
+                    <td>${timeStr}</td>
+                    <td>${statusTag}</td>
+                    <td style="text-align:right;">
+                        <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
+                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
+                    </td>
                 </tr>`;
+        });
+
+        document.getElementById('statTotal').innerText = allUsers.length;
+        document.getElementById('statPresent').innerText = present;
+        document.getElementById('statLate').innerText = late;
+        document.getElementById('statAbsent').innerText = allUsers.length - present;
+    }
+
+    // 4. CHART ANALYSIS
+    function renderChart() {
+        const ctx = document.getElementById('attendanceChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        const labels = [];
+        const dataHadir = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const key = d.toLocaleDateString('en-CA');
+            labels.push(d.toLocaleDateString('ms-MY', { weekday: 'short' }));
+            dataHadir.push((currentAttendance[key] || []).length);
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Jumlah Kehadiran',
+                    data: dataHadir,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
         });
     }
 
-    // SEMUA LOGIK WINDOW (Dikekalkan)
-    window.openUnlockModal = () => {
-        document.getElementById('modalTitle').innerText = "Buka Kunci Senarai";
-        document.getElementById('modalDesc').innerText = "Masukkan Kod Akses '1234'";
+    // 5. WINDOW ACTIONS (MODAL, THEME, ETC)
+    window.toggleTheme = () => {
+        const theme = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', theme);
+    };
+
+    window.openManualModal = (name) => {
+        document.getElementById('modalTitle').innerText = "Kemasukan Manual";
+        document.getElementById('modalDesc').innerText = `Tukar status kehadiran untuk ${name}`;
+        document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = window.verifyUnlockPin;
+        document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
     };
 
-    window.verifyUnlockPin = () => {
-        if(document.getElementById('manualPinInput').value === "1234") {
-            document.getElementById('staffListLocked').style.display = 'none';
-            document.getElementById('staffListContent').style.display = 'block';
-            closePinModal();
-        } else { alert("Kod Akses Salah!"); }
-    };
-
-    window.lockStaffList = () => {
-        document.getElementById('staffListLocked').style.display = 'block';
-        document.getElementById('staffListContent').style.display = 'none';
-    };
-
-    window.markManual = (name) => {
-        pendingManualName = name;
-        document.getElementById('modalTitle').innerText = "Sahkan Hadir Manual";
-        document.getElementById('modalDesc').innerText = `Masukkan Pin untuk ${name}`;
+    window.confirmDeleteUser = (id, name) => {
+        document.getElementById('modalTitle').innerText = "Padam Profil";
+        document.getElementById('modalDesc').innerText = `Adakah anda pasti mahu memadam ${name}?`;
+        document.getElementById('manualOptions').style.display = 'none';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = window.verifyManualPin;
+        document.getElementById('pinSubmitBtn').onclick = () => deleteUser(id);
     };
 
-    window.closePinModal = () => { document.getElementById('pinModal').style.display = 'none'; };
+    async function submitManual(name) {
+        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
+        const status = document.getElementById('statusSelect').value;
+        const selectedDate = document.getElementById('dateFilter').value;
+        
+        // Cari rekod sedia ada pada tarikh tersebut
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        let docId = null;
+        snap.forEach(d => {
+            if (d.data().timestamp?.toDate().toLocaleDateString('en-CA') === selectedDate) docId = d.id;
+        });
 
-    window.verifyManualPin = async () => {
-        if(document.getElementById('manualPinInput').value === "1234") {
-            const name = pendingManualName;
-            closePinModal();
-            const todayStr = new Date().toLocaleDateString('en-CA');
-            const q = query(collection(db, "attendance"), where("name", "==", name));
-            const snap = await getDocs(q);
-            let existingId = null;
-            snap.forEach(d => {
-                const ts = d.data().timestamp?.toDate();
-                if(ts && ts.toLocaleDateString('en-CA') === todayStr) existingId = d.id;
-            });
+        if (docId) {
+            await updateDoc(doc(db, "attendance", docId), { status: status, timestamp: serverTimestamp() });
+        } else {
+            await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
+        }
+        closeModal();
+    }
 
-            if(existingId) {
-                await updateDoc(doc(db, "attendance", existingId), { timestamp: serverTimestamp(), status: "Hadir (Manual)" });
-            } else {
-                await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: "Hadir (Manual)" });
-            }
-            alert("Berjaya dikemaskini.");
-        } else { alert("Kod Akses Salah!"); }
+    async function deleteUser(id) {
+        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
+        await deleteDoc(doc(db, "users", id));
+        closeModal();
+    }
+
+    window.register = async () => {
+        const name = document.getElementById('staffName').value;
+        if (!name) return alert("Masukkan nama!");
+        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (detection) {
+            await addDoc(collection(db, "users"), { name, descriptor: Array.from(detection.descriptor) });
+            alert("Berjaya disimpan!");
+            document.getElementById('staffName').value = "";
+        } else alert("Wajah tidak dikesan!");
+    };
+
+    window.closeModal = () => document.getElementById('pinModal').style.display = 'none';
+    window.filterRecords = () => updateDashboard();
+    window.exportExcel = () => {
+        const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
+        XLSX.writeFile(wb, `Laporan_E-Hadir_${document.getElementById('dateFilter').value}.xlsx`);
     };
 
     window.handleLogin = async () => {
@@ -327,25 +372,16 @@
 
     window.handleLogout = () => signOut(auth);
 
-    window.register = async () => {
-        const nameInput = document.getElementById('staffName');
-        if(!nameInput.value) { alert("Masukkan nama!"); return; }
-        
-        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })).withFaceLandmarks().withFaceDescriptor();
-        
-        if (detection) {
-            await addDoc(collection(db, "users"), { name: nameInput.value, descriptor: Array.from(detection.descriptor) });
-            alert("Identiti Wajah Berjaya Disimpan");
-            nameInput.value = "";
-        } else { alert("Wajah tidak dikesan!"); }
-    };
-
-    window.deleteUser = async (id, name) => { if(confirm(`Padam profil ${name}?`)) await deleteDoc(doc(db, "users", id)); };
-    window.deleteRecord = async (id) => { if(confirm("Padam rekod ini?")) await deleteDoc(doc(db, "attendance", id)); };
-    window.exportExcel = () => {
-        const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
-        XLSX.writeFile(wb, `Laporan_${new Date().toLocaleDateString()}.xlsx`);
-    };
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('adminContent').style.display = 'block';
+            initAdmin();
+        } else {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('adminContent').style.display = 'none';
+        }
+    });
 </script>
 </body>
 </html>
