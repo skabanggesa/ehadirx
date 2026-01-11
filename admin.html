@@ -140,6 +140,7 @@
                 <div id="regStatus">AI Sedia</div>
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
+                <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
             </div>
 
             <div class="card">
@@ -372,6 +373,62 @@
         } catch(e) { alert("Ralat menyimpan."); }
     }
 
+    // A. PADAM REKOD KEHADIRAN INDIVIDU (PADA TARIKH DIPILIH)
+window.deleteSingleAttendance = async (name) => {
+    const selDate = document.getElementById('dateFilter').value;
+    if (!confirm(`Padam rekod kehadiran ${name} pada tarikh ${selDate}?`)) return;
+
+    try {
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        
+        let found = false;
+        snap.forEach(async (d) => {
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) {
+                await deleteDoc(doc(db, "attendance", d.id));
+                found = true;
+            }
+        });
+
+        if (found) {
+            alert("Rekod kehadiran berjaya dipadam.");
+        } else {
+            alert("Tiada rekod kehadiran ditemui untuk tarikh ini.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Ralat memadam rekod.");
+    }
+};
+
+// B. PADAM SEMUA REKOD KEHADIRAN PADA TARIKH DIPILIH
+window.clearAllAttendanceToday = async () => {
+    const selDate = document.getElementById('dateFilter').value;
+    if (!confirm(`AMARAN: Ini akan memadam SEMUA kehadiran staf pada ${selDate}. Teruskan?`)) return;
+
+    if (prompt("Sila masukkan PIN ADMIN untuk sahkan:") !== ADMIN_PIN) {
+        return alert("PIN Salah!");
+    }
+
+    try {
+        const q = collection(db, "attendance");
+        const snap = await getDocs(q);
+        let count = 0;
+
+        for (const d of snap.docs) {
+            const ts = d.data().timestamp?.toDate();
+            if (ts && ts.toLocaleDateString('en-CA') === selDate) {
+                await deleteDoc(doc(db, "attendance", d.id));
+                count++;
+            }
+        }
+        alert(`Berjaya memadam ${count} rekod pada tarikh ${selDate}.`);
+    } catch (e) {
+        alert("Ralat memadam data.");
+    }
+};
+
     // 6. PADAM GURU
     window.confirmDeleteUser = (id, name) => {
         document.getElementById('modalTitle').innerText = "Padam Guru";
@@ -455,4 +512,5 @@
 </script>
 </body>
 </html>
+
 
