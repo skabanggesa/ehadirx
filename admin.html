@@ -57,11 +57,9 @@
         .tag-lewat { background: #fef3c7; color: #92400e; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
 
-        /* Modal Settings */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background: var(--card); padding: 30px; border-radius: 24px; border: 1px solid var(--border); max-width: 90%; }
         
-        /* Calendar UI */
         .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
         .calendar-day-label { font-size: 0.6rem; text-align: center; font-weight: 800; color: #64748b; padding-bottom: 5px; }
@@ -88,7 +86,7 @@
                 <option value="Cuti Rehat (CRK)">Cuti Rehat (CRK)</option>
             </select>
         </div>
-        <input type="password" id="manualPinInput" class="login-input" placeholder="Kod PIN Admin" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
+        <input type="password" id="manualPinInput" class="login-input" placeholder="Kod PIN" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
         <div style="display: flex; gap: 10px; margin-top: 20px;">
             <button onclick="closeModal('pinModal')" class="btn btn-outline" style="flex:1;">Batal</button>
             <button id="pinSubmitBtn" class="btn btn-save" style="flex:1;">Sahkan</button>
@@ -110,11 +108,6 @@
             </div>
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
-        <div style="margin-top:15px; display:flex; gap:15px; font-size:0.65rem; justify-content:center;">
-            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-hadir"></span> Hadir</span>
-            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-lewat"></span> Lewat</span>
-            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-cuti"></span> Cuti/Kursus</span>
-        </div>
     </div>
 </div>
 
@@ -164,7 +157,7 @@
             </div>
 
             <div class="card">
-                <h2>📋 Laporan Kehadiran <span style="font-weight:400; font-size:0.7rem; color:#64748b; margin-left:10px;">(Klik nama untuk kalendar)</span></h2>
+                <h2>📋 Laporan (Susunan A-Z)</h2>
                 <div style="overflow-x: auto;">
                     <table id="reportTable">
                         <thead>
@@ -203,7 +196,7 @@
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
     let allUsers = [];
-    let currentAttendance = {}; // Organised by date: { '2024-05-20': [...] }
+    let currentAttendance = {};
     let calDate = new Date();
     let currentViewedStaff = "";
     const ADMIN_PIN = "1234";
@@ -219,8 +212,11 @@
     }
 
     function startDataListeners() {
+        // AMBIL & SUSUN NAMA MENGIKUT ABJAD (A-Z)
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Logik Susunan Abjad
+            allUsers.sort((a, b) => a.name.localeCompare(b.name));
             updateDashboard();
         });
 
@@ -270,7 +266,7 @@
                     <td>${statusTag}</td>
                     <td style="text-align:right;">
                         <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
-                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; cursor:pointer; margin-left:10px;">🗑️</button>
+                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
                     </td>
                 </tr>`;
         });
@@ -281,76 +277,48 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // --- LOGIK KALENDAR ---
+    // --- FUNGSI KALENDAR ---
     window.openIndividualCalendar = (name) => {
-        currentViewedStaff = name;
-        calDate = new Date();
+        currentViewedStaff = name; calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
         document.getElementById('calendarModal').style.display = 'flex';
         renderCalendar();
     };
 
-    window.changeMonth = (val) => {
-        calDate.setMonth(calDate.getMonth() + val);
-        renderCalendar();
-    };
+    window.changeMonth = (val) => { calDate.setMonth(calDate.getMonth() + val); renderCalendar(); };
 
     function renderCalendar() {
-        const year = calDate.getFullYear();
-        const month = calDate.getMonth();
+        const year = calDate.getFullYear(); const month = calDate.getMonth();
         const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
         document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
-
-        const grid = document.getElementById('calendarGrid');
-        grid.innerHTML = "";
-
-        // Hari Label
-        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(day => {
-            grid.innerHTML += `<div class="calendar-day-label">${day}</div>`;
-        });
-
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-        // Padding kosong
+        const grid = document.getElementById('calendarGrid'); grid.innerHTML = "";
+        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(day => { grid.innerHTML += `<div class="calendar-day-label">${day}</div>`; });
+        const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
-
-        // Generate hari
         for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const records = currentAttendance[dateStr] || [];
-            const staffRecord = records.find(r => r.name === currentViewedStaff);
-            
-            let dotClass = "";
-            if (staffRecord) {
-                const s = staffRecord.status;
-                if (s.includes("Lewat")) dotClass = "dot-lewat";
-                else if (s.includes("Hadir")) dotClass = "dot-hadir";
-                else dotClass = "dot-cuti";
+            const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const rec = (currentAttendance[dStr] || []).find(r => r.name === currentViewedStaff);
+            let dot = "";
+            if (rec) {
+                if (rec.status.includes("Lewat")) dot = "dot-lewat";
+                else if (rec.status.includes("Hadir")) dot = "dot-hadir";
+                else dot = "dot-cuti";
             }
-
-            grid.innerHTML += `
-                <div class="calendar-cell">
-                    ${day}
-                    ${dotClass ? `<div class="dot ${dotClass}"></div>` : ''}
-                </div>`;
+            grid.innerHTML += `<div class="calendar-cell">${day}${dot ? `<div class="dot ${dot}"></div>` : ''}</div>`;
         }
     }
 
-    // --- FUNGSI ADMIN LAIN ---
+    // --- FUNGSI ADMIN ---
     window.register = async () => {
         const name = document.getElementById('staffName').value;
         if (!name) return alert("Masukkan nama!");
-        const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (detection) {
-            await addDoc(collection(db, "users"), { name, descriptor: Array.from(detection.descriptor) });
-            alert("Berjaya!"); document.getElementById('staffName').value = "";
-        } else alert("Wajah tidak dikesan!");
+        const det = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (det) { await addDoc(collection(db, "users"), { name, descriptor: Array.from(det.descriptor) }); alert("Berjaya!"); document.getElementById('staffName').value = ""; }
+        else alert("Wajah tidak dikesan!");
     };
 
     window.openManualModal = (name) => {
-        document.getElementById('modalTitle').innerText = "Kemasukan Manual";
-        document.getElementById('modalDesc').innerText = `Set kehadiran untuk ${name} pada tarikh terpilih.`;
+        document.getElementById('modalTitle').innerText = "Edit Kehadiran";
         document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
@@ -372,25 +340,19 @@
 
     window.confirmDeleteUser = (id, name) => {
         document.getElementById('modalTitle').innerText = "Padam Guru";
-        document.getElementById('modalDesc').innerText = `Padam identiti wajah ${name}?`;
         document.getElementById('manualOptions').style.display = 'none';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
         document.getElementById('pinSubmitBtn').onclick = () => {
-            if (document.getElementById('manualPinInput').value === ADMIN_PIN) {
-                deleteDoc(doc(db, "users", id)); closeModal('pinModal');
-            } else alert("PIN Salah!");
+            if (document.getElementById('manualPinInput').value === ADMIN_PIN) { deleteDoc(doc(db, "users", id)); closeModal('pinModal'); }
+            else alert("PIN Salah!");
         };
     };
 
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     window.toggleTheme = () => document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    window.exportExcel = () => XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `E-Hadir_${document.getElementById('dateFilter').value}.xlsx`);
-
-    window.handleLogin = async () => {
-        try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value); } 
-        catch (e) { alert("Ralat!"); }
-    };
+    window.exportExcel = () => XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `Laporan_${document.getElementById('dateFilter').value}.xlsx`);
+    window.handleLogin = async () => { try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value); } catch(e) { alert("Ralat!"); } };
     window.handleLogout = () => signOut(auth);
     onAuthStateChanged(auth, u => {
         if (u) { document.getElementById('loginSection').style.display = 'none'; document.getElementById('adminContent').style.display = 'block'; initAdmin(); }
