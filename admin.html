@@ -119,7 +119,6 @@
                 <div id="regStatus">AI SEDIA</div>
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI (3 SAMPEL)</button>
-                <p style="font-size: 0.6rem; color: #64748b; margin-top: 5px; text-align: center;">Sistem akan mengambil 3 sampel wajah secara automatik.</p>
                 <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
             </div>
 
@@ -185,7 +184,6 @@
     let calDate = new Date();
     let currentViewedStaff = "";
 
-    // 1. INITIALIZE ADMIN
     async function initAdmin() {
         try {
             await Promise.all([
@@ -201,7 +199,6 @@
         } catch (err) { alert("Ralat kamera atau model AI."); }
     }
 
-    // 2. DATA LISTENERS
     function startDataListeners() {
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -215,17 +212,20 @@
                 const data = d.data();
                 const ts = data.timestamp?.toDate();
                 if (ts) {
-                    const key = ts.toLocaleDateString('en-CA');
+                    // FIX: Gunakan format ISO YYYY-MM-DD yang standard
+                    const year = ts.getFullYear();
+                    const month = String(ts.getMonth() + 1).padStart(2, '0');
+                    const day = String(ts.getDate()).padStart(2, '0');
+                    const key = `${year}-${month}-${day}`;
+                    
                     if (!currentAttendance[key]) currentAttendance[key] = [];
                     currentAttendance[key].push({ id: d.id, ...data });
                 }
             });
             updateDashboard();
-            if (document.getElementById('calendarModal').style.display === 'flex') renderCalendar();
         });
     }
 
-    // 3. DASHBOARD UPDATE
     window.updateDashboard = () => {
         const selectedDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
@@ -237,13 +237,15 @@
 
         allUsers.forEach(user => {
             if (search && !user.name.toLowerCase().includes(search)) return;
-            const record = records.find(r => r.name === user.name);
+            
+            // Nama di Firestore mestilah sama tepat (Case Sensitive)
+            const record = records.find(r => r.name.trim().toUpperCase() === user.name.trim().toUpperCase());
             let statusTag = `<span class="tag tag-tidak">Tiada Rekod</span>`;
             let timeStr = "--:--";
             
             if (record) {
                 present++;
-                timeStr = record.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                timeStr = record.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12: true});
                 const s = record.status;
                 statusTag = `<span class="tag ${s.includes('Lewat') ? 'tag-lewat' : 'tag-hadir'}">${s}</span>`;
                 if(s.includes('Lewat')) late++;
@@ -267,7 +269,6 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // 4. REGISTER GURU (3 SAMPEL)
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const name = nameInput.value.trim().toUpperCase();
@@ -280,7 +281,7 @@
         for (let i = 1; i <= 3; i++) {
             statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
             statusLabel.style.color = "var(--warning)";
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, 1000));
 
             const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
                 .withFaceLandmarks().withFaceDescriptor();
@@ -288,7 +289,7 @@
             if (det) {
                 descriptors.push({ d: Array.from(det.descriptor) });
             } else {
-                alert(`Sampel ${i} gagal dikesan.`);
+                alert(`Sampel ${i} gagal dikesan. Sila cuba lagi.`);
                 statusLabel.innerText = "AI SEDIA";
                 return;
             }
@@ -297,9 +298,8 @@
         try {
             const q = query(collection(db, "users"), where("name", "==", name));
             const snap = await getDocs(q);
-
             if (!snap.empty) {
-                if(confirm(`Nama ${name} sudah ada. Kemaskini dengan 3 data wajah baru?`)) {
+                if(confirm(`Nama ${name} sudah ada. Kemaskini wajah?`)) {
                     await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors: descriptors });
                     alert("Berjaya kemaskini!");
                 }
@@ -309,12 +309,10 @@
             }
             nameInput.value = "";
         } catch (e) { alert("Ralat Firestore: " + e.message); }
-        
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
 
-    // 5. MANUAL EDIT & DELETE
     window.openManualModal = (name) => {
         document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
         document.getElementById('manualOptions').style.display = 'block';
@@ -328,19 +326,9 @@
         const status = document.getElementById('statusSelect').value;
         const selDate = document.getElementById('dateFilter').value;
         
-        const q = query(collection(db, "attendance"), where("name", "==", name));
-        const snap = await getDocs(q);
-        let existingId = null;
-        
-        snap.forEach(d => { 
-            const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) existingId = d.id; 
-        });
-
         try {
-            if (existingId) { await updateDoc(doc(db, "attendance", existingId), { status, timestamp: serverTimestamp() }); } 
-            else { await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() }); }
-            alert("Berjaya dikemaskini.");
+            await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
+            alert("Rekod manual disimpan.");
             closeModal('pinModal');
         } catch(e) { alert("Ralat menyimpan."); }
     }
@@ -360,19 +348,21 @@
 
     window.clearAllAttendanceToday = async () => {
         const selDate = document.getElementById('dateFilter').value;
-        if (!confirm(`Padam SEMUA kehadiran pada ${selDate}?`)) return;
+        if (prompt(`Taip 'PADAM' untuk sahkan pemadaman semua rekod pada ${selDate}:`) !== 'PADAM') return;
         if (prompt("Masukkan PIN ADMIN:") !== ADMIN_PIN) return alert("PIN Salah!");
 
         const q = collection(db, "attendance");
         const snap = await getDocs(q);
         for (const d of snap.docs) {
             const ts = d.data().timestamp?.toDate();
-            if (ts && ts.toLocaleDateString('en-CA') === selDate) await deleteDoc(doc(db, "attendance", d.id));
+            if (ts) {
+                const dStr = ts.toISOString().split('T')[0];
+                if (dStr === selDate) await deleteDoc(doc(db, "attendance", d.id));
+            }
         }
         alert(`Selesai memadam rekod tarikh ${selDate}.`);
     };
 
-    // 6. KALENDAR INDIVIDU
     window.openIndividualCalendar = (name) => {
         currentViewedStaff = name; calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
@@ -391,8 +381,8 @@
         const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
         for (let day = 1; day <= daysInMonth; day++) {
-            const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const rec = (currentAttendance[dStr] || []).find(r => r.name === currentViewedStaff);
+            const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const rec = (currentAttendance[key] || []).find(r => r.name === currentViewedStaff);
             let dot = "";
             if (rec) {
                 if (rec.status.includes("Lewat")) dot = "dot-lewat";
@@ -403,7 +393,6 @@
         }
     }
 
-    // 7. UTILITI LAIN
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     window.toggleTheme = () => {
         const current = document.body.getAttribute('data-theme');
