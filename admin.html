@@ -194,30 +194,32 @@
             const video = document.getElementById('adminVideo');
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
             video.srcObject = stream;
-            document.getElementById('dateFilter').valueAsDate = new Date();
+            
+            // Set tarikh hari ini secara automatik
+            const hariIni = new Date().toISOString().split('T')[0];
+            document.getElementById('dateFilter').value = hariIni;
+            
             startDataListeners();
-        } catch (err) { alert("Ralat kamera atau model AI."); }
+        } catch (err) { console.error("Ralat Kamera:", err); }
     }
 
     function startDataListeners() {
+        // Ambil Data Staf (Senarai Nama)
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
             updateDashboard();
         });
 
+        // Ambil Data Kehadiran
         onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (snap) => {
             currentAttendance = {};
             snap.forEach(d => {
                 const data = d.data();
                 const ts = data.timestamp?.toDate();
                 if (ts) {
-                    // FIX: Gunakan format ISO YYYY-MM-DD yang standard
-                    const year = ts.getFullYear();
-                    const month = String(ts.getMonth() + 1).padStart(2, '0');
-                    const day = String(ts.getDate()).padStart(2, '0');
-                    const key = `${year}-${month}-${day}`;
-                    
+                    // Pastikan format key sama dengan input date (YYYY-MM-DD)
+                    const key = ts.toISOString().split('T')[0];
                     if (!currentAttendance[key]) currentAttendance[key] = [];
                     currentAttendance[key].push({ id: d.id, ...data });
                 }
@@ -227,35 +229,46 @@
     }
 
     window.updateDashboard = () => {
-        const selectedDate = document.getElementById('dateFilter').value;
+        const filterDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
-        const records = currentAttendance[selectedDate] || [];
+        const recordsToday = currentAttendance[filterDate] || [];
         
-        let present = 0, late = 0;
+        console.log(`Mengemaskini dashboard untuk tarikh: ${filterDate}. Jumpa ${recordsToday.length} rekod.`);
+
+        let countHadir = 0, countLewat = 0;
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = "";
 
         allUsers.forEach(user => {
             if (search && !user.name.toLowerCase().includes(search)) return;
-            
-            // Nama di Firestore mestilah sama tepat (Case Sensitive)
-            const record = records.find(r => r.name.trim().toUpperCase() === user.name.trim().toUpperCase());
-            let statusTag = `<span class="tag tag-tidak">Tiada Rekod</span>`;
-            let timeStr = "--:--";
-            
+
+            // Cari rekod yang sepadan dengan nama (abaikan ruang kosong dan huruf besar/kecil)
+            const record = recordsToday.find(r => 
+                r.name.trim().toUpperCase() === user.name.trim().toUpperCase()
+            );
+
+            let statusHTML = `<span class="tag tag-tidak">Tiada Rekod</span>`;
+            let masaHTML = "--:--";
+
             if (record) {
-                present++;
-                timeStr = record.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12: true});
-                const s = record.status;
-                statusTag = `<span class="tag ${s.includes('Lewat') ? 'tag-lewat' : 'tag-hadir'}">${s}</span>`;
-                if(s.includes('Lewat')) late++;
+                countHadir++;
+                const jam = record.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                masaHTML = jam;
+                
+                const stat = record.status || "Hadir";
+                const warna = stat.includes("Lewat") ? "tag-lewat" : "tag-hadir";
+                statusHTML = `<span class="tag ${warna}">${stat}</span>`;
+                
+                if (stat.includes("Lewat")) countLewat++;
             }
 
             tbody.innerHTML += `
                 <tr>
-                    <td onclick="openIndividualCalendar('${user.name}')" style="cursor:pointer; color:var(--accent);"><strong>${user.name}</strong></td>
-                    <td>${timeStr}</td>
-                    <td>${statusTag}</td>
+                    <td onclick="openIndividualCalendar('${user.name}')" style="cursor:pointer; color:var(--accent);">
+                        <strong>${user.name}</strong>
+                    </td>
+                    <td>${masaHTML}</td>
+                    <td>${statusHTML}</td>
                     <td style="text-align:right;">
                         <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
                         <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
@@ -263,12 +276,14 @@
                 </tr>`;
         });
 
+        // Update Statistik
         document.getElementById('statTotal').innerText = allUsers.length;
-        document.getElementById('statPresent').innerText = present;
-        document.getElementById('statLate').innerText = late;
-        document.getElementById('statAbsent').innerText = allUsers.length - present;
-    }
+        document.getElementById('statPresent').innerText = countHadir;
+        document.getElementById('statLate').innerText = countLewat;
+        document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
+    };
 
+    // --- FUNGSI DAFTAR 3 SAMPEL ---
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const name = nameInput.value.trim().toUpperCase();
@@ -279,7 +294,7 @@
         let descriptors = [];
 
         for (let i = 1; i <= 3; i++) {
-            statusLabel.innerText = `⌛ SAMPEL ${i}/3... SILA GERAKKAN KEPALA SEDIKIT`;
+            statusLabel.innerText = `⌛ SAMPEL ${i}/3... GERAKKAN WAJAH`;
             statusLabel.style.color = "var(--warning)";
             await new Promise(r => setTimeout(r, 1000));
 
@@ -289,7 +304,7 @@
             if (det) {
                 descriptors.push({ d: Array.from(det.descriptor) });
             } else {
-                alert(`Sampel ${i} gagal dikesan. Sila cuba lagi.`);
+                alert(`Sampel ${i} gagal. Cuba pastikan pencahayaan cukup.`);
                 statusLabel.innerText = "AI SEDIA";
                 return;
             }
@@ -299,22 +314,23 @@
             const q = query(collection(db, "users"), where("name", "==", name));
             const snap = await getDocs(q);
             if (!snap.empty) {
-                if(confirm(`Nama ${name} sudah ada. Kemaskini wajah?`)) {
-                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors: descriptors });
-                    alert("Berjaya kemaskini!");
+                if(confirm(`Kemaskini data wajah ${name}?`)) {
+                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors });
+                    alert("Berjaya dikemaskini!");
                 }
             } else {
                 await addDoc(collection(db, "users"), { name, descriptors });
-                alert("Pendaftaran Berjaya!");
+                alert("Pendaftaran berjaya!");
             }
             nameInput.value = "";
-        } catch (e) { alert("Ralat Firestore: " + e.message); }
+        } catch (e) { alert("Ralat Simpan: " + e.message); }
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
 
+    // --- FUNGSI MODAL & PIN ---
     window.openManualModal = (name) => {
-        document.getElementById('modalTitle').innerText = "Edit Kehadiran Manual";
+        document.getElementById('modalTitle').innerText = "Edit Manual: " + name;
         document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
@@ -322,67 +338,58 @@
     };
 
     async function submitManual(name) {
-        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
+        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN SALAH!");
         const status = document.getElementById('statusSelect').value;
-        const selDate = document.getElementById('dateFilter').value;
-        
         try {
-            await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
-            alert("Rekod manual disimpan.");
+            await addDoc(collection(db, "attendance"), { 
+                name: name.toUpperCase(), 
+                status: status, 
+                timestamp: serverTimestamp() 
+            });
+            alert("Rekod disimpan!");
             closeModal('pinModal');
-        } catch(e) { alert("Ralat menyimpan."); }
+        } catch(e) { alert("Ralat Simpan."); }
     }
 
     window.confirmDeleteUser = (id, name) => {
-        document.getElementById('modalTitle').innerText = "Padam Guru";
-        document.getElementById('manualOptions').style.display = 'none';
-        document.getElementById('pinModal').style.display = 'flex';
-        document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = async () => {
-            if (document.getElementById('manualPinInput').value === ADMIN_PIN) { 
-                await deleteDoc(doc(db, "users", id)); 
-                closeModal('pinModal'); 
-            } else alert("PIN Salah!");
-        };
-    };
-
-    window.clearAllAttendanceToday = async () => {
-        const selDate = document.getElementById('dateFilter').value;
-        if (prompt(`Taip 'PADAM' untuk sahkan pemadaman semua rekod pada ${selDate}:`) !== 'PADAM') return;
-        if (prompt("Masukkan PIN ADMIN:") !== ADMIN_PIN) return alert("PIN Salah!");
-
-        const q = collection(db, "attendance");
-        const snap = await getDocs(q);
-        for (const d of snap.docs) {
-            const ts = d.data().timestamp?.toDate();
-            if (ts) {
-                const dStr = ts.toISOString().split('T')[0];
-                if (dStr === selDate) await deleteDoc(doc(db, "attendance", d.id));
-            }
+        if (prompt(`Taip 'PADAM' untuk buang guru ${name}:`) === 'PADAM') {
+            deleteDoc(doc(db, "users", id)).then(() => alert("Guru dipadam."));
         }
-        alert(`Selesai memadam rekod tarikh ${selDate}.`);
     };
 
+    // --- KALENDAR ---
     window.openIndividualCalendar = (name) => {
-        currentViewedStaff = name; calDate = new Date();
+        currentViewedStaff = name;
+        calDate = new Date();
         document.getElementById('calStaffName').innerText = name;
         document.getElementById('calendarModal').style.display = 'flex';
         renderCalendar();
     };
 
-    window.changeMonth = (val) => { calDate.setMonth(calDate.getMonth() + val); renderCalendar(); };
+    window.changeMonth = (val) => {
+        calDate.setMonth(calDate.getMonth() + val);
+        renderCalendar();
+    };
 
     function renderCalendar() {
-        const year = calDate.getFullYear(); const month = calDate.getMonth();
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
         const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
         document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
-        const grid = document.getElementById('calendarGrid'); grid.innerHTML = "";
-        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(day => { grid.innerHTML += `<div class="calendar-day-label">${day}</div>`; });
-        const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        const grid = document.getElementById('calendarGrid');
+        grid.innerHTML = "";
+        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(d => grid.innerHTML += `<div class="calendar-day-label">${d}</div>`);
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+        
         for (let day = 1; day <= daysInMonth; day++) {
             const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const rec = (currentAttendance[key] || []).find(r => r.name === currentViewedStaff);
+            const rec = (currentAttendance[key] || []).find(r => r.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase());
+            
             let dot = "";
             if (rec) {
                 if (rec.status.includes("Lewat")) dot = "dot-lewat";
@@ -393,6 +400,7 @@
         }
     }
 
+    // --- UTILITI ---
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     window.toggleTheme = () => {
         const current = document.body.getAttribute('data-theme');
@@ -405,7 +413,7 @@
     window.handleLogin = async () => { 
         const email = document.getElementById('loginEmail').value;
         const pass = document.getElementById('loginPass').value;
-        try { await signInWithEmailAndPassword(auth, email, pass); } catch(e) { alert("Gagal Log Masuk!"); } 
+        try { await signInWithEmailAndPassword(auth, email, pass); } catch(e) { alert("Login Gagal!"); } 
     };
     window.handleLogout = () => signOut(auth);
 
@@ -422,3 +430,4 @@
 </script>
 </body>
 </html>
+
