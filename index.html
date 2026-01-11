@@ -79,6 +79,7 @@
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
+            console.log("Model berjaya dimuatkan!");
 
             // Muat data dari Cache
             const cachedData = localStorage.getItem('staff_data');
@@ -205,3 +206,4 @@
 </script>
 </body>
 </html>
+
