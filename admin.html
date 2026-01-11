@@ -7,7 +7,6 @@
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
@@ -22,7 +21,6 @@
 
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); transition: 0.3s; }
         
-        /* Layout */
         .header { 
             display: flex; align-items: center; justify-content: space-between; 
             background: var(--card); padding: 15px 5%; border-bottom: 1px solid var(--border);
@@ -32,7 +30,6 @@
         .main-container { padding: 25px 5%; display: grid; grid-template-columns: 1fr; gap: 25px; }
         @media (min-width: 1200px) { .main-container { grid-template-columns: 350px 1fr; } }
 
-        /* Dashboard Cards */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: var(--card); padding: 20px; border-radius: 20px; border: 1px solid var(--border); text-align: center; }
         .stat-card h4 { margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
@@ -60,15 +57,27 @@
         .tag-lewat { background: #fef3c7; color: #92400e; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
 
-        #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
+        /* Modal Settings */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
-        .modal-content { background: var(--card); padding: 30px; border-radius: 24px; width: 340px; border: 1px solid var(--border); }
+        .modal-content { background: var(--card); padding: 30px; border-radius: 24px; border: 1px solid var(--border); max-width: 90%; }
+        
+        /* Calendar UI */
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendar-day-label { font-size: 0.6rem; text-align: center; font-weight: 800; color: #64748b; padding-bottom: 5px; }
+        .calendar-cell { aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; position: relative; min-width: 40px; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; }
+        .dot-hadir { background: var(--success); }
+        .dot-lewat { background: var(--warning); }
+        .dot-cuti { background: var(--accent); }
+
+        #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
     </style>
 </head>
 <body>
 
 <div id="pinModal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="width: 340px;">
         <h3 id="modalTitle" style="margin:0 0 10px 0;">Sahkan Tindakan</h3>
         <p id="modalDesc" style="font-size: 0.8rem; color: #64748b; margin-bottom: 15px;"></p>
         <div id="manualOptions" style="display:none;">
@@ -81,8 +90,30 @@
         </div>
         <input type="password" id="manualPinInput" class="login-input" placeholder="Kod PIN Admin" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
         <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Batal</button>
+            <button onclick="closeModal('pinModal')" class="btn btn-outline" style="flex:1;">Batal</button>
             <button id="pinSubmitBtn" class="btn btn-save" style="flex:1;">Sahkan</button>
+        </div>
+    </div>
+</div>
+
+<div id="calendarModal" class="modal-overlay">
+    <div class="modal-content" style="width: 450px;">
+        <div class="calendar-header">
+            <div>
+                <h3 id="calStaffName" style="margin:0; color:var(--accent);">Nama Guru</h3>
+                <p id="calMonthYear" style="margin:0; font-size:0.8rem; opacity:0.7;">Bulan Tahun</p>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <button onclick="changeMonth(-1)" class="btn btn-outline" style="padding:5px 12px;">←</button>
+                <button onclick="changeMonth(1)" class="btn btn-outline" style="padding:5px 12px;">→</button>
+                <button onclick="closeModal('calendarModal')" class="btn" style="background:#fee2e2; color:var(--danger);">X</button>
+            </div>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div style="margin-top:15px; display:flex; gap:15px; font-size:0.65rem; justify-content:center;">
+            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-hadir"></span> Hadir</span>
+            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-lewat"></span> Lewat</span>
+            <span style="display:flex; align-items:center; gap:4px;"><span class="dot dot-cuti"></span> Cuti/Kursus</span>
         </div>
     </div>
 </div>
@@ -114,32 +145,26 @@
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI</button>
-                <p id="regStatus" style="font-size: 0.65rem; color: #64748b; margin-top: 10px; text-align: center;">Pastikan pencahayaan cukup untuk imbasan tepat.</p>
             </div>
 
             <div class="card">
                 <h2>🔍 Carian & Arkib</h2>
-                <input type="date" id="dateFilter" class="login-input" onchange="filterRecords()">
-                <input type="text" id="searchName" class="login-input" placeholder="Cari nama guru..." onkeyup="filterRecords()">
+                <input type="date" id="dateFilter" class="login-input" onchange="updateDashboard()">
+                <input type="text" id="searchName" class="login-input" placeholder="Cari nama guru..." onkeyup="updateDashboard()">
                 <button onclick="exportExcel()" class="btn btn-outline" style="width:100%; margin-top:10px; justify-content:center;">📥 Muat Turun Excel</button>
             </div>
         </div>
 
         <div>
             <div class="stats-grid">
-                <div class="stat-card"><h4>Jumlah Staf</h4><p id="statTotal">0</p></div>
+                <div class="stat-card"><h4>Staf</h4><p id="statTotal">0</p></div>
                 <div class="stat-card"><h4>Hadir</h4><p id="statPresent" style="color:var(--success)">0</p></div>
                 <div class="stat-card"><h4>Lewat</h4><p id="statLate" style="color:var(--warning)">0</p></div>
                 <div class="stat-card"><h4>Tiada Rekod</h4><p id="statAbsent" style="color:var(--danger)">0</p></div>
             </div>
 
-            <div class="card" style="margin-bottom: 25px;">
-                <h2>📊 Analisis Kehadiran (7 Hari)</h2>
-                <canvas id="attendanceChart" height="100"></canvas>
-            </div>
-
             <div class="card">
-                <h2>📋 Laporan Kehadiran</h2>
+                <h2>📋 Laporan Kehadiran <span style="font-weight:400; font-size:0.7rem; color:#64748b; margin-left:10px;">(Klik nama untuk kalendar)</span></h2>
                 <div style="overflow-x: auto;">
                     <table id="reportTable">
                         <thead>
@@ -178,47 +203,44 @@
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
     let allUsers = [];
-    let currentAttendance = {};
-    let chartInstance = null;
+    let currentAttendance = {}; // Organised by date: { '2024-05-20': [...] }
+    let calDate = new Date();
+    let currentViewedStaff = "";
     const ADMIN_PIN = "1234";
 
-    // 1. INITIALIZE ADMIN
     async function initAdmin() {
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         document.getElementById('adminVideo').srcObject = stream;
-        
         document.getElementById('dateFilter').valueAsDate = new Date();
         startDataListeners();
     }
 
-    // 2. DATA LISTENERS (REAL-TIME)
     function startDataListeners() {
-        // Listen to Users
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             updateDashboard();
         });
 
-        // Listen to Attendance
         onSnapshot(query(collection(db, "attendance"), orderBy("timestamp", "desc")), (snap) => {
             currentAttendance = {};
             snap.forEach(d => {
                 const data = d.data();
-                const dateKey = data.timestamp?.toDate().toLocaleDateString('en-CA');
-                if (!currentAttendance[dateKey]) currentAttendance[dateKey] = [];
-                currentAttendance[dateKey].push({ id: d.id, ...data });
+                const ts = data.timestamp?.toDate();
+                if (ts) {
+                    const key = ts.toLocaleDateString('en-CA');
+                    if (!currentAttendance[key]) currentAttendance[key] = [];
+                    currentAttendance[key].push({ id: d.id, ...data });
+                }
             });
             updateDashboard();
-            renderChart();
+            if (document.getElementById('calendarModal').style.display === 'flex') renderCalendar();
         });
     }
 
-    // 3. DASHBOARD LOGIC
-    function updateDashboard() {
+    window.updateDashboard = () => {
         const selectedDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
         const records = currentAttendance[selectedDate] || [];
@@ -229,7 +251,6 @@
 
         allUsers.forEach(user => {
             if (search && !user.name.toLowerCase().includes(search)) return;
-
             const record = records.find(r => r.name === user.name);
             let statusTag = `<span class="tag tag-tidak">Tiada Rekod</span>`;
             let timeStr = "--:--";
@@ -237,22 +258,19 @@
             if (record) {
                 present++;
                 timeStr = record.timestamp?.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                if (record.status.includes("Lewat")) {
-                    late++;
-                    statusTag = `<span class="tag tag-lewat">${record.status}</span>`;
-                } else {
-                    statusTag = `<span class="tag tag-hadir">${record.status}</span>`;
-                }
+                const s = record.status;
+                statusTag = `<span class="tag ${s.includes('Lewat') ? 'tag-lewat' : 'tag-hadir'}">${s}</span>`;
+                if(s.includes('Lewat')) late++;
             }
 
             tbody.innerHTML += `
                 <tr>
-                    <td><strong>${user.name}</strong></td>
+                    <td onclick="openIndividualCalendar('${user.name}')" style="cursor:pointer; color:var(--accent);"><strong>${user.name}</strong></td>
                     <td>${timeStr}</td>
                     <td>${statusTag}</td>
                     <td style="text-align:right;">
                         <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
-                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
+                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; cursor:pointer; margin-left:10px;">🗑️</button>
                     </td>
                 </tr>`;
         });
@@ -263,124 +281,120 @@
         document.getElementById('statAbsent').innerText = allUsers.length - present;
     }
 
-    // 4. CHART ANALYSIS
-    function renderChart() {
-        const ctx = document.getElementById('attendanceChart').getContext('2d');
-        if (chartInstance) chartInstance.destroy();
-
-        const labels = [];
-        const dataHadir = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const key = d.toLocaleDateString('en-CA');
-            labels.push(d.toLocaleDateString('ms-MY', { weekday: 'short' }));
-            dataHadir.push((currentAttendance[key] || []).length);
-        }
-
-        chartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Jumlah Kehadiran',
-                    data: dataHadir,
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
-        });
-    }
-
-    // 5. WINDOW ACTIONS (MODAL, THEME, ETC)
-    window.toggleTheme = () => {
-        const theme = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        document.body.setAttribute('data-theme', theme);
+    // --- LOGIK KALENDAR ---
+    window.openIndividualCalendar = (name) => {
+        currentViewedStaff = name;
+        calDate = new Date();
+        document.getElementById('calStaffName').innerText = name;
+        document.getElementById('calendarModal').style.display = 'flex';
+        renderCalendar();
     };
 
-    window.openManualModal = (name) => {
-        document.getElementById('modalTitle').innerText = "Kemasukan Manual";
-        document.getElementById('modalDesc').innerText = `Tukar status kehadiran untuk ${name}`;
-        document.getElementById('manualOptions').style.display = 'block';
-        document.getElementById('pinModal').style.display = 'flex';
-        document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
+    window.changeMonth = (val) => {
+        calDate.setMonth(calDate.getMonth() + val);
+        renderCalendar();
     };
 
-    window.confirmDeleteUser = (id, name) => {
-        document.getElementById('modalTitle').innerText = "Padam Profil";
-        document.getElementById('modalDesc').innerText = `Adakah anda pasti mahu memadam ${name}?`;
-        document.getElementById('manualOptions').style.display = 'none';
-        document.getElementById('pinModal').style.display = 'flex';
-        document.getElementById('manualPinInput').value = "";
-        document.getElementById('pinSubmitBtn').onclick = () => deleteUser(id);
-    };
+    function renderCalendar() {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+        document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
 
-    async function submitManual(name) {
-        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
-        const status = document.getElementById('statusSelect').value;
-        const selectedDate = document.getElementById('dateFilter').value;
-        
-        // Cari rekod sedia ada pada tarikh tersebut
-        const q = query(collection(db, "attendance"), where("name", "==", name));
-        const snap = await getDocs(q);
-        let docId = null;
-        snap.forEach(d => {
-            if (d.data().timestamp?.toDate().toLocaleDateString('en-CA') === selectedDate) docId = d.id;
+        const grid = document.getElementById('calendarGrid');
+        grid.innerHTML = "";
+
+        // Hari Label
+        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(day => {
+            grid.innerHTML += `<div class="calendar-day-label">${day}</div>`;
         });
 
-        if (docId) {
-            await updateDoc(doc(db, "attendance", docId), { status: status, timestamp: serverTimestamp() });
-        } else {
-            await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        // Padding kosong
+        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+
+        // Generate hari
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const records = currentAttendance[dateStr] || [];
+            const staffRecord = records.find(r => r.name === currentViewedStaff);
+            
+            let dotClass = "";
+            if (staffRecord) {
+                const s = staffRecord.status;
+                if (s.includes("Lewat")) dotClass = "dot-lewat";
+                else if (s.includes("Hadir")) dotClass = "dot-hadir";
+                else dotClass = "dot-cuti";
+            }
+
+            grid.innerHTML += `
+                <div class="calendar-cell">
+                    ${day}
+                    ${dotClass ? `<div class="dot ${dotClass}"></div>` : ''}
+                </div>`;
         }
-        closeModal();
     }
 
-    async function deleteUser(id) {
-        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
-        await deleteDoc(doc(db, "users", id));
-        closeModal();
-    }
-
+    // --- FUNGSI ADMIN LAIN ---
     window.register = async () => {
         const name = document.getElementById('staffName').value;
         if (!name) return alert("Masukkan nama!");
         const detection = await faceapi.detectSingleFace(document.getElementById('adminVideo'), new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         if (detection) {
             await addDoc(collection(db, "users"), { name, descriptor: Array.from(detection.descriptor) });
-            alert("Berjaya disimpan!");
-            document.getElementById('staffName').value = "";
+            alert("Berjaya!"); document.getElementById('staffName').value = "";
         } else alert("Wajah tidak dikesan!");
     };
 
-    window.closeModal = () => document.getElementById('pinModal').style.display = 'none';
-    window.filterRecords = () => updateDashboard();
-    window.exportExcel = () => {
-        const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"));
-        XLSX.writeFile(wb, `Laporan_E-Hadir_${document.getElementById('dateFilter').value}.xlsx`);
+    window.openManualModal = (name) => {
+        document.getElementById('modalTitle').innerText = "Kemasukan Manual";
+        document.getElementById('modalDesc').innerText = `Set kehadiran untuk ${name} pada tarikh terpilih.`;
+        document.getElementById('manualOptions').style.display = 'block';
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
     };
+
+    async function submitManual(name) {
+        if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN Salah!");
+        const status = document.getElementById('statusSelect').value;
+        const selDate = document.getElementById('dateFilter').value;
+        const q = query(collection(db, "attendance"), where("name", "==", name));
+        const snap = await getDocs(q);
+        let dId = null;
+        snap.forEach(d => { if (d.data().timestamp?.toDate().toLocaleDateString('en-CA') === selDate) dId = d.id; });
+        if (dId) await updateDoc(doc(db, "attendance", dId), { status, timestamp: serverTimestamp() });
+        else await addDoc(collection(db, "attendance"), { name, status, timestamp: serverTimestamp() });
+        closeModal('pinModal');
+    }
+
+    window.confirmDeleteUser = (id, name) => {
+        document.getElementById('modalTitle').innerText = "Padam Guru";
+        document.getElementById('modalDesc').innerText = `Padam identiti wajah ${name}?`;
+        document.getElementById('manualOptions').style.display = 'none';
+        document.getElementById('pinModal').style.display = 'flex';
+        document.getElementById('manualPinInput').value = "";
+        document.getElementById('pinSubmitBtn').onclick = () => {
+            if (document.getElementById('manualPinInput').value === ADMIN_PIN) {
+                deleteDoc(doc(db, "users", id)); closeModal('pinModal');
+            } else alert("PIN Salah!");
+        };
+    };
+
+    window.closeModal = (id) => document.getElementById(id).style.display = 'none';
+    window.toggleTheme = () => document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    window.exportExcel = () => XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("reportTable")), `E-Hadir_${document.getElementById('dateFilter').value}.xlsx`);
 
     window.handleLogin = async () => {
-        try {
-            await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
-        } catch (e) { alert("Gagal Log Masuk!"); }
+        try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPass').value); } 
+        catch (e) { alert("Ralat!"); }
     };
-
     window.handleLogout = () => signOut(auth);
-
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('adminContent').style.display = 'block';
-            initAdmin();
-        } else {
-            document.getElementById('loginSection').style.display = 'block';
-            document.getElementById('adminContent').style.display = 'none';
-        }
+    onAuthStateChanged(auth, u => {
+        if (u) { document.getElementById('loginSection').style.display = 'none'; document.getElementById('adminContent').style.display = 'block'; initAdmin(); }
+        else { document.getElementById('loginSection').style.display = 'block'; document.getElementById('adminContent').style.display = 'none'; }
     });
 </script>
 </body>
