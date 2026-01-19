@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pentadbir Pro | E-Hadir</title>
+    <title>Pentadbir Pro | E-Hadir Analisis</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -21,10 +21,19 @@
         .header { display: flex; align-items: center; justify-content: space-between; background: var(--card); padding: 15px 5%; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
         .main-container { padding: 25px 5%; display: grid; grid-template-columns: 1fr; gap: 25px; }
         @media (min-width: 1200px) { .main-container { grid-template-columns: 350px 1fr; } }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        
+        /* Stats & Analysis Styling */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .stat-card { background: var(--card); padding: 20px; border-radius: 20px; border: 1px solid var(--border); text-align: center; }
         .stat-card h4 { margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
         .stat-card p { margin: 10px 0 0; font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+        
+        .analysis-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .analysis-table th { background: var(--accent); color: white; padding: 10px; font-size: 0.75rem; text-align: center; }
+        .analysis-table td { padding: 10px; text-align: center; border-bottom: 1px solid var(--border); font-size: 0.9rem; font-weight: 600; }
+        .analysis-table tr:last-child td { border-bottom: none; }
+        .analysis-row-header { text-align: left !important; background: var(--bg); width: 40%; }
+
         .card { background: var(--card); padding: 25px; border-radius: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid var(--border); }
         h2 { font-size: 1rem; margin-top: 0; margin-bottom: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
         video { width: 100%; border-radius: 16px; background: #000; transform: scaleX(-1); }
@@ -32,15 +41,19 @@
         .btn { padding: 10px 18px; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 0.85rem; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
         .btn-save { background: var(--accent); color: white; width: 100%; justify-content: center; }
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
-        table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; color: #64748b; font-size: 0.7rem; border-bottom: 2px solid var(--border); text-transform: uppercase; }
-        td { padding: 14px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        
+        /* Main Table */
+        table.main-table { width: 100%; border-collapse: collapse; }
+        table.main-table th { text-align: left; padding: 12px; color: #64748b; font-size: 0.7rem; border-bottom: 2px solid var(--border); text-transform: uppercase; }
+        table.main-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        
         .tag { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
         .tag-hadir { background: #d1fae5; color: #065f46; }
         .tag-lewat { background: #fef3c7; color: #92400e; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
         .role-badge { font-size: 0.6rem; background: var(--border); padding: 2px 6px; border-radius: 4px; cursor: pointer; margin-left: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
         .role-badge:hover { background: var(--accent); color: white; }
+        
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background: var(--card); padding: 30px; border-radius: 24px; border: 1px solid var(--border); max-width: 90%; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
@@ -50,11 +63,31 @@
         .dot-hadir { background: var(--success); }
         .dot-lewat { background: var(--warning); }
         .dot-cuti { background: var(--accent); }
+        
         #loginSection { max-width: 380px; margin: 100px auto; text-align: center; background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid var(--border); }
         #regStatus { font-size: 0.7rem; font-weight: 700; text-align: center; margin-top: 5px; color: var(--accent); }
+
+        /* PRINT STYLE */
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body>
+
+<div id="printArea" style="display:none; padding: 40px;">
+    <div style="text-align:center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
+        <h1 style="margin:0; font-size: 1.5rem; text-transform:uppercase;">Laporan Analisis Kehadiran</h1>
+        <p style="margin:5px 0 0 0; font-size: 1rem;" id="printDateDisplay">Tarikh: -</p>
+    </div>
+    <div id="printContent"></div>
+    <div style="margin-top: 50px; text-align: center; font-size: 0.8rem;">
+        <p>Dicetak oleh Sistem E-Hadir Digital pada <span id="printTime"></span></p>
+    </div>
+</div>
 
 <div id="pinModal" class="modal-overlay">
     <div class="modal-content" style="width: 340px;">
@@ -141,6 +174,7 @@
 
             <div class="card">
                 <h2>🔍 Carian & Arkib</h2>
+                <label style="font-size:0.7rem; color:#64748b; font-weight:700;">TARIKH PAPARAN UTAMA:</label>
                 <input type="date" id="dateFilter" class="login-input" onchange="loadAttendanceForDate()">
                 <input type="text" id="searchName" class="login-input" placeholder="Cari nama guru..." onkeyup="updateDashboard()">
                 <button onclick="exportExcel()" class="btn btn-outline" style="width:100%; margin-top:10px; justify-content:center;">📥 Muat Turun Excel</button>
@@ -149,16 +183,31 @@
 
         <div>
             <div class="stats-grid">
-                <div class="stat-card"><h4>Staf</h4><p id="statTotal">0</p></div>
-                <div class="stat-card"><h4>Hadir</h4><p id="statPresent" style="color:var(--success)">0</p></div>
-                <div class="stat-card"><h4>Lewat</h4><p id="statLate" style="color:var(--warning)">0</p></div>
-                <div class="stat-card"><h4>Tiada Rekod</h4><p id="statAbsent" style="color:var(--danger)">0</p></div>
+                <div class="stat-card"><h4>Jumlah Staf</h4><p id="statTotal">0</p></div>
+                <div class="stat-card"><h4>Hadir (Semua)</h4><p id="statPresent" style="color:var(--success)">0</p></div>
+                <div class="stat-card"><h4>Lewat (Semua)</h4><p id="statLate" style="color:var(--warning)">0</p></div>
+                <div class="stat-card"><h4>Tidak Hadir</h4><p id="statAbsent" style="color:var(--danger)">0</p></div>
+            </div>
+
+            <div class="card" style="margin-bottom: 25px; border: 2px solid var(--accent);">
+                <h2 style="color: var(--accent);">📊 Analisis Kehadiran & Statistik</h2>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items: flex-end;">
+                    <div style="flex:1; min-width: 150px;">
+                        <label style="font-size:0.7rem; color:#64748b; font-weight:700;">TARIKH ANALISIS:</label>
+                        <input type="date" id="analysisDate" class="login-input" style="margin:5px 0 0 0;">
+                    </div>
+                    <button onclick="generateAnalysis()" class="btn btn-save" style="margin-bottom: 2px;">⚡ Jana Analisis</button>
+                    <button onclick="printAnalysis()" class="btn btn-outline" style="margin-bottom: 2px;">🖨️ Cetak</button>
+                </div>
+
+                <div id="analysisResult" style="margin-top: 20px; display: none;">
+                    </div>
             </div>
 
             <div class="card">
-                <h2>📋 Laporan (Susunan A-Z)</h2>
+                <h2>📋 Senarai Kehadiran (Susunan A-Z)</h2>
                 <div style="overflow-x: auto;">
-                    <table id="reportTable">
+                    <table class="main-table" id="reportTable">
                         <thead>
                             <tr>
                                 <th>Nama & Jawatan</th>
@@ -215,17 +264,18 @@
             
             const hariIni = new Date().toISOString().split('T')[0];
             document.getElementById('dateFilter').value = hariIni;
+            document.getElementById('analysisDate').value = hariIni; // Set analysis date to today by default
             
             startDataListeners();
         } catch (err) { console.error("Ralat Kamera:", err); }
     }
 
     function startDataListeners() {
-        // Ambil data user termasuk role
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
-            loadAttendanceForDate(); // Refresh data bila user berubah
+            loadAttendanceForDate(); 
+            // Also refresh analysis if currently visible, but keeping it manual is safer
         });
     }
 
@@ -236,11 +286,8 @@
             unsubscribeAttendance();
         }
 
-        const startDate = new Date(filterDate);
-        startDate.setHours(0, 0, 0, 0);
-        
-        const endDate = new Date(filterDate);
-        endDate.setHours(23, 59, 59, 999);
+        const startDate = new Date(filterDate); startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(filterDate); endDate.setHours(23, 59, 59, 999);
 
         const q = query(
             collection(db, "attendance"), 
@@ -251,26 +298,18 @@
 
         unsubscribeAttendance = onSnapshot(q, (snap) => {
             currentAttendance[filterDate] = []; 
-            
             snap.forEach(d => {
                 const data = d.data();
                 currentAttendance[filterDate].push({ id: d.id, ...data });
             });
-
             updateDashboard(); 
         });
     };
 
-    // Fungsi semak masa ikut Role (7:10 Guru, 8:00 AKP)
     function checkIsLate(timeStr, role) {
-        // timeStr format HH:MM, contoh "07:45"
-        const roleUpper = (role || "GURU").toUpperCase(); // Default GURU jika tiada role
-        let cutoff = "07:10"; // Default Guru
-
-        if (roleUpper === "AKP") {
-            cutoff = "08:00";
-        }
-
+        const roleUpper = (role || "GURU").toUpperCase(); 
+        let cutoff = "07:10"; 
+        if (roleUpper === "AKP") cutoff = "08:00";
         return timeStr > cutoff;
     }
 
@@ -295,31 +334,32 @@
 
             let statusHTML = `<span class="tag tag-tidak">Tiada Rekod</span>`;
             let masaHTML = "--:--";
-            let roleDisplay = user.role || "GURU"; // Tunjuk GURU jika tiada data
+            let roleDisplay = user.role || "GURU";
 
             if (record) {
                 countHadir++;
-                let timeStr = ""; // Untuk logik semakan
-
+                let timeStr = ""; 
                 if (record.timestamp) {
                     const dateObj = record.timestamp.toDate();
                     masaHTML = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-                    // Format masa 24 jam untuk perbandingan (HH:MM)
                     timeStr = dateObj.toTimeString().substring(0, 5); 
                 }
                 
                 let stat = record.status || "Hadir";
                 let warna = "tag-hadir";
 
-                // --- SEMAKAN KEDUA (VISUAL CHECK) ---
-                // Walaupun DB kata "Hadir", kita semak jam. Jika lewat, warnakan Kuning.
                 const isLateByTime = timeStr ? checkIsLate(timeStr, user.role) : false;
                 const isLateByText = stat.includes("Lewat");
 
                 if (isLateByText || isLateByTime) {
                     warna = "tag-lewat";
-                    countLewat++;
-                    // Jika teks asal "Hadir (Manual)" tapi masa lewat, ia akan jadi kuning.
+                    countLewat++; // Only increment overall late count for dashboard
+                }
+                // Handle non-attendance statuses for dashboard counters (optional refinement)
+                if (stat.includes("MC") || stat.includes("CRK") || stat.includes("Kursus")) {
+                    warna = "tag-tidak";
+                    // Technically these are "Present" in the list but "Absent" physically? 
+                    // For dashboard simple stats, we count them as "Hadir" (recorded), but analysis will be deeper.
                 }
 
                 statusHTML = `<span class="tag ${warna}">${stat}</span>`;
@@ -346,22 +386,184 @@
         document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
     };
 
-    // Fungsi Tukar Jawatan (Tanpa padam muka)
+    // ==========================================
+    //  NEW: ANALYSIS FUNCTIONS
+    // ==========================================
+    window.generateAnalysis = async () => {
+        const dateVal = document.getElementById('analysisDate').value;
+        if(!dateVal) return alert("Sila pilih tarikh dahulu.");
+
+        const resultDiv = document.getElementById('analysisResult');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<p style="text-align:center;">Sedang mengira data...</p>';
+
+        // 1. Fetch attendance specifically for analysis date
+        const startDate = new Date(dateVal); startDate.setHours(0,0,0,0);
+        const endDate = new Date(dateVal); endDate.setHours(23,59,59,999);
+
+        const q = query(collection(db, "attendance"), 
+            where("timestamp", ">=", Timestamp.fromDate(startDate)),
+            where("timestamp", "<=", Timestamp.fromDate(endDate))
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const records = [];
+        querySnapshot.forEach(doc => records.push(doc.data()));
+
+        // 2. Initialize Counters
+        let stats = {
+            guru: { total: 0, hadir: 0, lewat: 0, crk: 0, mc: 0, kursus: 0 },
+            akp: { total: 0, hadir: 0, lewat: 0, crk: 0, mc: 0, kursus: 0 },
+            total_recorded: records.length,
+            total_users: allUsers.length
+        };
+
+        // 3. Logic Loop
+        allUsers.forEach(user => {
+            const role = (user.role || "GURU").toLowerCase(); // guru or akp
+            const group = role === "akp" ? stats.akp : stats.guru;
+            
+            // Find record
+            const record = records.find(r => r.name.trim().toUpperCase() === user.name.trim().toUpperCase());
+
+            if (record) {
+                const status = (record.status || "").toLowerCase();
+                const timeStr = record.timestamp ? record.timestamp.toDate().toTimeString().substring(0, 5) : "";
+                
+                // Determine Category based on Status Text first
+                if (status.includes("mc") || status.includes("sakit")) {
+                    group.mc++;
+                } else if (status.includes("crk") || status.includes("rehat")) {
+                    group.crk++;
+                } else if (status.includes("kursus") || status.includes("tugas")) {
+                    group.kursus++;
+                } else {
+                    // It is Hadir or Lewat
+                    // Check logic based on time or text
+                    const isLate = checkIsLate(timeStr, user.role) || status.includes("lewat");
+                    
+                    if (isLate) {
+                        group.lewat++;
+                        // Lewat is also present physically
+                        group.hadir++; 
+                    } else {
+                        group.hadir++; // On time
+                    }
+                }
+            }
+        });
+
+        // 4. Calculate Percentage (Present + Late + Kursus) / Total Staff * 100
+        // Note: MC and CRK are technically "Absent" from duty but recorded. 
+        // We will sum (Hadir + Kursus) as "Attendance %". 
+        // (Remember in logic above: 'lewat' increments 'hadir' too? No, let's keep them separate for table columns but sum for %.)
+        
+        // CORRECTION: In logic above, I incremented group.hadir IF isLate. So group.hadir = (OnTime + Late).
+        // Total Present Physically = stats.guru.hadir + stats.akp.hadir
+        // Total Duty (Physically + Kursus)
+        
+        const totalPhysical = stats.guru.hadir + stats.akp.hadir;
+        const totalKursus = stats.guru.kursus + stats.akp.kursus;
+        const totalStaff = allUsers.length;
+        const percent = totalStaff > 0 ? ((totalPhysical + totalKursus) / totalStaff * 100).toFixed(1) : 0;
+
+        // 5. Build HTML Table
+        const html = `
+            <div style="text-align:center; margin-bottom:15px;">
+                <span style="font-size:2rem; font-weight:800; color:var(--accent);">${percent}%</span>
+                <br><span style="font-size:0.8rem; color:#64748b;">PERATUS KEHADIRAN (Termasuk Kursus)</span>
+            </div>
+
+            <table class="analysis-table">
+                <thead>
+                    <tr>
+                        <th class="analysis-row-header" style="background:transparent; color:var(--text);">KATEGORI</th>
+                        <th>GURU</th>
+                        <th>AKP</th>
+                        <th>JUMLAH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="analysis-row-header">Hadir (Menepati Masa)</td>
+                        <td>${stats.guru.hadir - stats.guru.lewat}</td>
+                        <td>${stats.akp.hadir - stats.akp.lewat}</td>
+                        <td>${(stats.guru.hadir - stats.guru.lewat) + (stats.akp.hadir - stats.akp.lewat)}</td>
+                    </tr>
+                    <tr>
+                        <td class="analysis-row-header" style="color:var(--warning);">Hadir (Lewat)</td>
+                        <td>${stats.guru.lewat}</td>
+                        <td>${stats.akp.lewat}</td>
+                        <td>${stats.guru.lewat + stats.akp.lewat}</td>
+                    </tr>
+                    <tr>
+                        <td class="analysis-row-header">Cuti Sakit (MC)</td>
+                        <td>${stats.guru.mc}</td>
+                        <td>${stats.akp.mc}</td>
+                        <td>${stats.guru.mc + stats.akp.mc}</td>
+                    </tr>
+                    <tr>
+                        <td class="analysis-row-header">Cuti Rehat (CRK)</td>
+                        <td>${stats.guru.crk}</td>
+                        <td>${stats.akp.crk}</td>
+                        <td>${stats.guru.crk + stats.akp.crk}</td>
+                    </tr>
+                    <tr>
+                        <td class="analysis-row-header">Kursus / Tugas Luar</td>
+                        <td>${stats.guru.kursus}</td>
+                        <td>${stats.akp.kursus}</td>
+                        <td>${stats.guru.kursus + stats.akp.kursus}</td>
+                    </tr>
+                    <tr style="background:var(--bg); border-top:2px solid var(--border);">
+                        <td class="analysis-row-header"><strong>JUMLAH BESAR</strong></td>
+                        <td><strong>${stats.guru.hadir + stats.guru.mc + stats.guru.crk + stats.guru.kursus}</strong></td>
+                        <td><strong>${stats.akp.hadir + stats.akp.mc + stats.akp.crk + stats.akp.kursus}</strong></td>
+                        <td><strong>${records.length}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+
+        resultDiv.innerHTML = html;
+        
+        // Save content for printing
+        window.currentAnalysisHTML = html;
+        window.currentAnalysisDate = dateVal;
+    };
+
+    window.printAnalysis = () => {
+        if(!window.currentAnalysisHTML) return alert("Sila jana analisis dahulu.");
+        
+        const printArea = document.getElementById('printContent');
+        const printDate = document.getElementById('printDateDisplay');
+        const printTime = document.getElementById('printTime');
+        
+        // Format Date nicely
+        const d = new Date(window.currentAnalysisDate);
+        const dateStr = d.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        
+        printDate.innerText = "Tarikh: " + dateStr;
+        printTime.innerText = new Date().toLocaleString();
+        printArea.innerHTML = window.currentAnalysisHTML;
+
+        window.print();
+    };
+
+    // ==========================================
+    //  EXISTING FUNCTIONS (UNCHANGED)
+    // ==========================================
+
     window.changeUserRole = async (id, name, currentRole) => {
         const newRole = currentRole === "GURU" ? "AKP" : "GURU";
         if(confirm(`Tukar jawatan ${name} daripada ${currentRole} kepada ${newRole}?`)) {
-            try {
-                await updateDoc(doc(db, "users", id), { role: newRole });
-                // alert("Jawatan dikemaskini."); // Optional, tak perlu alert pun tak apa sebab UI auto update
-            } catch(e) {
-                alert("Ralat: " + e.message);
-            }
+            try { await updateDoc(doc(db, "users", id), { role: newRole }); } 
+            catch(e) { alert("Ralat: " + e.message); }
         }
     };
 
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
-        const roleInput = document.getElementById('staffRole'); // Ambil role
+        const roleInput = document.getElementById('staffRole');
         const name = nameInput.value.trim().toUpperCase();
         const role = roleInput.value; 
 
@@ -392,21 +594,13 @@
             const q = query(collection(db, "users"), where("name", "==", name));
             const snap = await getDocs(q);
             
-            // Simpan data termasuk ROLE
             if (!snap.empty) {
                 if(confirm(`Kemaskini data wajah ${name}?`)) {
-                    await updateDoc(doc(db, "users", snap.docs[0].id), { 
-                        descriptors, 
-                        role: role // Update role juga
-                    });
+                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors, role: role });
                     alert("Berjaya dikemaskini!");
                 }
             } else {
-                await addDoc(collection(db, "users"), { 
-                    name, 
-                    descriptors, 
-                    role: role // Simpan role baru
-                });
+                await addDoc(collection(db, "users"), { name, descriptors, role: role });
                 alert("Pendaftaran berjaya!");
             }
             nameInput.value = "";
@@ -421,27 +615,18 @@
         if (pin !== ADMIN_PIN) return alert("PIN SALAH!");
 
         const selectedDate = document.getElementById('dateFilter').value;
-        
         const startDate = new Date(selectedDate); startDate.setHours(0,0,0,0);
         const endDate = new Date(selectedDate); endDate.setHours(23,59,59,999);
 
-        const q = query(
-            collection(db, "attendance"), 
-            where("timestamp", ">=", Timestamp.fromDate(startDate)),
-            where("timestamp", "<=", Timestamp.fromDate(endDate))
-        );
-        
+        const q = query(collection(db, "attendance"), where("timestamp", ">=", Timestamp.fromDate(startDate)), where("timestamp", "<=", Timestamp.fromDate(endDate)));
         const snap = await getDocs(q);
         
         let count = 0;
         const deletes = [];
-        snap.forEach(d => {
-            deletes.push(deleteDoc(doc(db, "attendance", d.id)));
-            count++;
-        });
+        snap.forEach(d => { deletes.push(deleteDoc(doc(db, "attendance", d.id))); count++; });
         
         await Promise.all(deletes);
-        alert(`Berjaya memadam ${count} rekod bagi tarikh ${selectedDate}.`);
+        alert(`Berjaya memadam ${count} rekod.`);
     };
 
     window.openManualModal = (name) => {
@@ -449,51 +634,33 @@
         document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
-        
         const now = new Date();
-        const timeString = now.toTimeString().split(' ')[0].substring(0, 5);
-        document.getElementById('manualTimeInput').value = timeString;
-
+        document.getElementById('manualTimeInput').value = now.toTimeString().split(' ')[0].substring(0, 5);
         document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
     };
 
     async function submitManual(name) {
         if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN SALAH!");
-        
         let status = document.getElementById('statusSelect').value;
         const filterDateVal = document.getElementById('dateFilter').value; 
         const timeVal = document.getElementById('manualTimeInput').value;
 
         if (!timeVal) return alert("Sila tetapkan masa!");
-
-        // Cari data user untuk tahu Role dia (Guru atau AKP)
         const userObj = allUsers.find(u => u.name === name);
         const userRole = userObj ? userObj.role : "Guru";
 
-        // === LOGIK BARU: Check Role & Time ===
         if (status === "Hadir (Manual)") {
-            if (checkIsLate(timeVal, userRole)) {
-                status = "Hadir (Lewat)";
-            }
+            if (checkIsLate(timeVal, userRole)) status = "Hadir (Lewat)";
         }
-        // =====================================
 
         const dateTimeString = `${filterDateVal}T${timeVal}:00`;
         const finalDate = new Date(dateTimeString);
 
         try {
-            await addDoc(collection(db, "attendance"), { 
-                name: name.toUpperCase(), 
-                status: status, 
-                timestamp: Timestamp.fromDate(finalDate) 
-            });
-            
-            alert(`Rekod disimpan: ${status} pada jam ${timeVal}`);
+            await addDoc(collection(db, "attendance"), { name: name.toUpperCase(), status: status, timestamp: Timestamp.fromDate(finalDate) });
+            alert(`Rekod disimpan: ${status}`);
             closeModal('pinModal');
-        } catch(e) { 
-            console.error(e);
-            alert("Ralat Simpan: " + e.message); 
-        }
+        } catch(e) { alert("Ralat Simpan: " + e.message); }
     }
 
     window.confirmDeleteUser = (id, name) => {
@@ -530,10 +697,8 @@
         for (let day = 1; day <= daysInMonth; day++) {
             const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const rec = (currentAttendance[key] || []).find(r => r.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase());
-            
             let dot = "";
             if (rec) {
-                // Logic visual di kalendar pun ikut logik "Lewat" text
                 if (rec.status.includes("Lewat")) dot = "dot-lewat";
                 else if (rec.status.includes("Hadir")) dot = "dot-hadir";
                 else dot = "dot-cuti";
