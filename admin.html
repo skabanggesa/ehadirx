@@ -386,8 +386,8 @@
         document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
     };
 
-    // ==========================================
-    //  NEW: ANALYSIS FUNCTIONS
+// ==========================================
+    //  NEW: ANALYSIS FUNCTIONS (UPDATED)
     // ==========================================
     window.generateAnalysis = async () => {
         const dateVal = document.getElementById('analysisDate').value;
@@ -453,19 +453,19 @@
             }
         });
 
-        // 4. Calculate Percentage (Present + Late + Kursus) / Total Staff * 100
-        // Note: MC and CRK are technically "Absent" from duty but recorded. 
-        // We will sum (Hadir + Kursus) as "Attendance %". 
-        // (Remember in logic above: 'lewat' increments 'hadir' too? No, let's keep them separate for table columns but sum for %.)
-        
-        // CORRECTION: In logic above, I incremented group.hadir IF isLate. So group.hadir = (OnTime + Late).
-        // Total Present Physically = stats.guru.hadir + stats.akp.hadir
-        // Total Duty (Physically + Kursus)
-        
+        // 4. Calculate Percentage
         const totalPhysical = stats.guru.hadir + stats.akp.hadir;
         const totalKursus = stats.guru.kursus + stats.akp.kursus;
         const totalStaff = allUsers.length;
         const percent = totalStaff > 0 ? ((totalPhysical + totalKursus) / totalStaff * 100).toFixed(1) : 0;
+
+        // ============================================================
+        // PEMBETULAN: KIRA JUMLAH SECARA MANUAL (SUPAYA TALLY)
+        // ============================================================
+        const totalGuruDisplay = stats.guru.hadir + stats.guru.mc + stats.guru.crk + stats.guru.kursus;
+        const totalAKPDisplay  = stats.akp.hadir + stats.akp.mc + stats.akp.crk + stats.akp.kursus;
+        // Jumlah besar adalah hasil tambah dua nombor di atas (bukan records.length)
+        const grandTotalDisplay = totalGuruDisplay + totalAKPDisplay;
 
         // 5. Build HTML Table
         const html = `
@@ -516,9 +516,9 @@
                     </tr>
                     <tr style="background:var(--bg); border-top:2px solid var(--border);">
                         <td class="analysis-row-header"><strong>JUMLAH BESAR</strong></td>
-                        <td><strong>${stats.guru.hadir + stats.guru.mc + stats.guru.crk + stats.guru.kursus}</strong></td>
-                        <td><strong>${stats.akp.hadir + stats.akp.mc + stats.akp.crk + stats.akp.kursus}</strong></td>
-                        <td><strong>${records.length}</strong></td>
+                        <td><strong>${totalGuruDisplay}</strong></td>
+                        <td><strong>${totalAKPDisplay}</strong></td>
+                        <td><strong>${grandTotalDisplay}</strong></td>
                     </tr>
                 </tbody>
             </table>
@@ -736,3 +736,4 @@
 </script>
 </body>
 </html>
+
