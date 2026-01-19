@@ -168,7 +168,6 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // TAMBAH 'Timestamp' dalam import
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, getDocs, where, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -189,8 +188,8 @@
     const ADMIN_PIN = "1234";
 
     let allUsers = [];
-    let currentAttendance = {}; // Menyimpan cache data: { "2023-12-01": [data], "2023-12-02": [data] }
-    let unsubscribeAttendance = null; // Untuk kawalan listener
+    let currentAttendance = {}; 
+    let unsubscribeAttendance = null; 
     let calDate = new Date();
     let currentViewedStaff = "";
 
@@ -213,33 +212,26 @@
     }
 
     function startDataListeners() {
-        // 1. Dengar Data Users SAHAJA dulu (Master List)
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
-            
-            // Selepas user load, baru tarik data kehadiran hari ini
             loadAttendanceForDate();
         });
     }
 
-    // FUNGSI BARU: Tarik data ikut tarikh (Fix Flickering)
     window.loadAttendanceForDate = () => {
         const filterDate = document.getElementById('dateFilter').value;
         
-        // Matikan listener lama
         if (unsubscribeAttendance) {
             unsubscribeAttendance();
         }
 
-        // Setup tarikh mula & tamat hari tersebut
         const startDate = new Date(filterDate);
         startDate.setHours(0, 0, 0, 0);
         
         const endDate = new Date(filterDate);
         endDate.setHours(23, 59, 59, 999);
 
-        // Query spesifik untuk tarikh itu sahaja
         const q = query(
             collection(db, "attendance"), 
             where("timestamp", ">=", Timestamp.fromDate(startDate)),
@@ -248,8 +240,6 @@
         );
 
         unsubscribeAttendance = onSnapshot(q, (snap) => {
-            // Kita simpan dalam currentAttendance supaya updateDashboard boleh baca
-            // Reset array untuk hari ini supaya data sentiasa fresh
             currentAttendance[filterDate] = []; 
             
             snap.forEach(d => {
@@ -257,7 +247,7 @@
                 currentAttendance[filterDate].push({ id: d.id, ...data });
             });
 
-            updateDashboard(); // Refresh paparan
+            updateDashboard(); 
         });
     };
 
@@ -265,7 +255,6 @@
         const filterDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
         
-        // Ambil data dari cache untuk tarikh yang dipilih
         const recordsToday = currentAttendance[filterDate] || [];
         
         let countHadir = 0, countLewat = 0;
@@ -286,7 +275,6 @@
 
             if (record) {
                 countHadir++;
-                // Check if timestamp exists
                 if (record.timestamp) {
                     masaHTML = record.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
                 }
@@ -369,7 +357,6 @@
 
         const selectedDate = document.getElementById('dateFilter').value;
         
-        // Kita guna query date range yang sama macam loadAttendance
         const startDate = new Date(selectedDate); startDate.setHours(0,0,0,0);
         const endDate = new Date(selectedDate); endDate.setHours(23,59,59,999);
 
@@ -392,32 +379,35 @@
         alert(`Berjaya memadam ${count} rekod bagi tarikh ${selectedDate}.`);
     };
 
-    // UPDATE: Fungsi Buka Modal Manual
     window.openManualModal = (name) => {
         document.getElementById('modalTitle').innerText = "Edit Manual: " + name;
         document.getElementById('manualOptions').style.display = 'block';
         document.getElementById('pinModal').style.display = 'flex';
         document.getElementById('manualPinInput').value = "";
         
-        // Auto-set masa sekarang
         const now = new Date();
-        const timeString = now.toTimeString().split(' ')[0].substring(0, 5); // Format HH:mm
+        const timeString = now.toTimeString().split(' ')[0].substring(0, 5);
         document.getElementById('manualTimeInput').value = timeString;
 
         document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
     };
 
-    // UPDATE: Fungsi Submit Manual (Gabung Tarikh + Masa)
+    // --- DI SINI PERUBAHAN UTAMA UNTUK LEWAT 7:45 AM ---
     async function submitManual(name) {
         if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN SALAH!");
         
-        const status = document.getElementById('statusSelect').value;
+        let status = document.getElementById('statusSelect').value;
         const filterDateVal = document.getElementById('dateFilter').value; 
         const timeVal = document.getElementById('manualTimeInput').value;
 
         if (!timeVal) return alert("Sila tetapkan masa!");
 
-        // Gabungkan Tarikh (dari filter) dan Masa (dari input)
+        // === LOGIK BARU: Jika Hadir & Masa > 07:45, tukar status ===
+        if (status === "Hadir (Manual)" && timeVal > "07:45") {
+            status = "Hadir (Lewat)";
+        }
+        // ========================================================
+
         const dateTimeString = `${filterDateVal}T${timeVal}:00`;
         const finalDate = new Date(dateTimeString);
 
@@ -425,10 +415,11 @@
             await addDoc(collection(db, "attendance"), { 
                 name: name.toUpperCase(), 
                 status: status, 
-                // Guna Timestamp.fromDate untuk pastikan tarikh tepat
                 timestamp: Timestamp.fromDate(finalDate) 
             });
-            alert(`Rekod disimpan pada: ${finalDate.toLocaleString()}`);
+            
+            // Papar alert dengan status terkini (Hadir atau Lewat)
+            alert(`Rekod disimpan: ${status} pada jam ${timeVal}`);
             closeModal('pinModal');
         } catch(e) { 
             console.error(e);
@@ -468,8 +459,6 @@
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
         
         for (let day = 1; day <= daysInMonth; day++) {
-            // Nota: Calendar ini kini hanya boleh tunjuk data yang SUDAH dimuatkan dalam currentAttendance.
-            // Dengan sistem On-Demand, ini bermakna ia mungkin kosong jika admin belum buka tarikh tersebut.
             const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const rec = (currentAttendance[key] || []).find(r => r.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase());
             
