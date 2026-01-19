@@ -39,6 +39,8 @@
         .tag-hadir { background: #d1fae5; color: #065f46; }
         .tag-lewat { background: #fef3c7; color: #92400e; }
         .tag-tidak { background: #f1f5f9; color: #64748b; }
+        .role-badge { font-size: 0.6rem; background: var(--border); padding: 2px 6px; border-radius: 4px; cursor: pointer; margin-left: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .role-badge:hover { background: var(--accent); color: white; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background: var(--card); padding: 30px; border-radius: 24px; border: 1px solid var(--border); max-width: 90%; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
@@ -122,10 +124,17 @@
     <div class="main-container">
         <div style="display: flex; flex-direction: column; gap: 20px;">
             <div class="card">
-                <h2>👤 Daftar Guru Baru</h2>
+                <h2>👤 Daftar Staf Baru</h2>
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <div id="regStatus">AI SEDIA</div>
+                
                 <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
+                
+                <select id="staffRole" class="login-input">
+                    <option value="Guru">Jawatan: GURU</option>
+                    <option value="AKP">Jawatan: AKP</option>
+                </select>
+
                 <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI (3 SAMPEL)</button>
                 <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
             </div>
@@ -152,7 +161,7 @@
                     <table id="reportTable">
                         <thead>
                             <tr>
-                                <th>Nama Guru</th>
+                                <th>Nama & Jawatan</th>
                                 <th>Waktu</th>
                                 <th>Status</th>
                                 <th style="text-align:right;">Tindakan</th>
@@ -212,10 +221,11 @@
     }
 
     function startDataListeners() {
+        // Ambil data user termasuk role
         onSnapshot(collection(db, "users"), (snap) => {
             allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             allUsers.sort((a, b) => a.name.localeCompare(b.name));
-            loadAttendanceForDate();
+            loadAttendanceForDate(); // Refresh data bila user berubah
         });
     }
 
@@ -251,6 +261,19 @@
         });
     };
 
+    // Fungsi semak masa ikut Role (7:10 Guru, 8:00 AKP)
+    function checkIsLate(timeStr, role) {
+        // timeStr format HH:MM, contoh "07:45"
+        const roleUpper = (role || "GURU").toUpperCase(); // Default GURU jika tiada role
+        let cutoff = "07:10"; // Default Guru
+
+        if (roleUpper === "AKP") {
+            cutoff = "08:00";
+        }
+
+        return timeStr > cutoff;
+    }
+
     window.updateDashboard = () => {
         const filterDate = document.getElementById('dateFilter').value;
         const search = document.getElementById('searchName').value.toLowerCase();
@@ -272,24 +295,41 @@
 
             let statusHTML = `<span class="tag tag-tidak">Tiada Rekod</span>`;
             let masaHTML = "--:--";
+            let roleDisplay = user.role || "GURU"; // Tunjuk GURU jika tiada data
 
             if (record) {
                 countHadir++;
+                let timeStr = ""; // Untuk logik semakan
+
                 if (record.timestamp) {
-                    masaHTML = record.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    const dateObj = record.timestamp.toDate();
+                    masaHTML = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    // Format masa 24 jam untuk perbandingan (HH:MM)
+                    timeStr = dateObj.toTimeString().substring(0, 5); 
                 }
                 
-                const stat = record.status || "Hadir";
-                const warna = stat.includes("Lewat") ? "tag-lewat" : "tag-hadir";
+                let stat = record.status || "Hadir";
+                let warna = "tag-hadir";
+
+                // --- SEMAKAN KEDUA (VISUAL CHECK) ---
+                // Walaupun DB kata "Hadir", kita semak jam. Jika lewat, warnakan Kuning.
+                const isLateByTime = timeStr ? checkIsLate(timeStr, user.role) : false;
+                const isLateByText = stat.includes("Lewat");
+
+                if (isLateByText || isLateByTime) {
+                    warna = "tag-lewat";
+                    countLewat++;
+                    // Jika teks asal "Hadir (Manual)" tapi masa lewat, ia akan jadi kuning.
+                }
+
                 statusHTML = `<span class="tag ${warna}">${stat}</span>`;
-                
-                if (stat.includes("Lewat")) countLewat++;
             }
 
             tbody.innerHTML += `
                 <tr>
-                    <td onclick="openIndividualCalendar('${user.name}')" style="cursor:pointer; color:var(--accent);">
-                        <strong>${user.name}</strong>
+                    <td>
+                        <div style="font-weight:700; color:var(--text); cursor:pointer;" onclick="openIndividualCalendar('${user.name}')">${user.name}</div>
+                        <span class="role-badge" onclick="changeUserRole('${user.id}', '${user.name}', '${roleDisplay}')" title="Klik untuk tukar jawatan">${roleDisplay}</span>
                     </td>
                     <td>${masaHTML}</td>
                     <td>${statusHTML}</td>
@@ -306,10 +346,26 @@
         document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
     };
 
+    // Fungsi Tukar Jawatan (Tanpa padam muka)
+    window.changeUserRole = async (id, name, currentRole) => {
+        const newRole = currentRole === "GURU" ? "AKP" : "GURU";
+        if(confirm(`Tukar jawatan ${name} daripada ${currentRole} kepada ${newRole}?`)) {
+            try {
+                await updateDoc(doc(db, "users", id), { role: newRole });
+                // alert("Jawatan dikemaskini."); // Optional, tak perlu alert pun tak apa sebab UI auto update
+            } catch(e) {
+                alert("Ralat: " + e.message);
+            }
+        }
+    };
+
     window.register = async () => {
         const nameInput = document.getElementById('staffName');
+        const roleInput = document.getElementById('staffRole'); // Ambil role
         const name = nameInput.value.trim().toUpperCase();
-        if (!name) return alert("Sila masukkan nama guru!");
+        const role = roleInput.value; 
+
+        if (!name) return alert("Sila masukkan nama staf!");
 
         const statusLabel = document.getElementById('regStatus');
         const video = document.getElementById('adminVideo');
@@ -335,13 +391,22 @@
         try {
             const q = query(collection(db, "users"), where("name", "==", name));
             const snap = await getDocs(q);
+            
+            // Simpan data termasuk ROLE
             if (!snap.empty) {
                 if(confirm(`Kemaskini data wajah ${name}?`)) {
-                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors });
+                    await updateDoc(doc(db, "users", snap.docs[0].id), { 
+                        descriptors, 
+                        role: role // Update role juga
+                    });
                     alert("Berjaya dikemaskini!");
                 }
             } else {
-                await addDoc(collection(db, "users"), { name, descriptors });
+                await addDoc(collection(db, "users"), { 
+                    name, 
+                    descriptors, 
+                    role: role // Simpan role baru
+                });
                 alert("Pendaftaran berjaya!");
             }
             nameInput.value = "";
@@ -392,7 +457,6 @@
         document.getElementById('pinSubmitBtn').onclick = () => submitManual(name);
     };
 
-    // --- DI SINI PERUBAHAN UTAMA UNTUK LEWAT 7:45 AM ---
     async function submitManual(name) {
         if (document.getElementById('manualPinInput').value !== ADMIN_PIN) return alert("PIN SALAH!");
         
@@ -402,11 +466,17 @@
 
         if (!timeVal) return alert("Sila tetapkan masa!");
 
-        // === LOGIK BARU: Jika Hadir & Masa > 07:45, tukar status ===
-        if (status === "Hadir (Manual)" && timeVal > "07:45") {
-            status = "Hadir (Lewat)";
+        // Cari data user untuk tahu Role dia (Guru atau AKP)
+        const userObj = allUsers.find(u => u.name === name);
+        const userRole = userObj ? userObj.role : "Guru";
+
+        // === LOGIK BARU: Check Role & Time ===
+        if (status === "Hadir (Manual)") {
+            if (checkIsLate(timeVal, userRole)) {
+                status = "Hadir (Lewat)";
+            }
         }
-        // ========================================================
+        // =====================================
 
         const dateTimeString = `${filterDateVal}T${timeVal}:00`;
         const finalDate = new Date(dateTimeString);
@@ -418,7 +488,6 @@
                 timestamp: Timestamp.fromDate(finalDate) 
             });
             
-            // Papar alert dengan status terkini (Hadir atau Lewat)
             alert(`Rekod disimpan: ${status} pada jam ${timeVal}`);
             closeModal('pinModal');
         } catch(e) { 
@@ -429,7 +498,7 @@
 
     window.confirmDeleteUser = (id, name) => {
         if (prompt(`Taip 'PADAM' untuk buang guru ${name}:`) === 'PADAM') {
-            deleteDoc(doc(db, "users", id)).then(() => alert("Guru dipadam."));
+            deleteDoc(doc(db, "users", id)).then(() => alert("Staf dipadam."));
         }
     };
 
@@ -464,6 +533,7 @@
             
             let dot = "";
             if (rec) {
+                // Logic visual di kalendar pun ikut logik "Lewat" text
                 if (rec.status.includes("Lewat")) dot = "dot-lewat";
                 else if (rec.status.includes("Hadir")) dot = "dot-hadir";
                 else dot = "dot-cuti";
