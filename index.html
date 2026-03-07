@@ -19,12 +19,11 @@
         input { width: 100%; padding: 16px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.1rem; text-align: center; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; }
         .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-        .bg-success { background: var(--success); }
     </style>
 </head>
 <body>
 
-<div id="overlay" class="overlay bg-success">
+<div id="overlay" class="overlay">
     <div id="overlayIcon" style="font-size: 5rem; margin-bottom: 10px;">✅</div>
     <div id="overlayText" style="font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px;"></div>
 </div>
@@ -68,17 +67,13 @@
     let lastScanTime = 0;
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-    // 1. MUAT MODEL & WARM-UP
     async function initSystem() {
         try {
             await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
             await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
             await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             
-            // Warm-up: Jalankan satu pengesanan kosong supaya enjin AI 'panas'
-            console.log("AI Warming up...");
             const tempCanvas = document.createElement('canvas');
-            // Saiz Warm-up diselaraskan ke 224
             tempCanvas.width = 224; tempCanvas.height = 224;
             await faceapi.detectSingleFace(tempCanvas, new faceapi.TinyFaceDetectorOptions());
             
@@ -102,7 +97,6 @@
             const snap = await getDocs(collection(db, "users"));
             registeredUsers = snap.docs.map(doc => {
                 const data = doc.data();
-                // Baiki: Tarik 'descriptors' (3 sampel) yang disimpan dari admin.html
                 let userDescs = [];
                 if (data.descriptors && Array.isArray(data.descriptors)) {
                     userDescs = data.descriptors.map(item => new Float32Array(item.d));
@@ -118,20 +112,16 @@
             console.error(err);
         }
     };
-function startCamera() {
+
+    function startCamera() {
         navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                width: { ideal: 400 }, 
-                height: { ideal: 300 }, 
-                facingMode: "user" 
-            } 
+            video: { width: { ideal: 400 }, height: { ideal: 300 }, facingMode: "user" } 
         })
         .then(stream => {
             const video = document.getElementById('video');
             video.srcObject = stream;
             video.style.display = "block";
             
-            // KEMASKINI PENTING: Tunggu video betul-betul 'hidup' baru mula AI
             video.onloadedmetadata = () => {
                 video.play();
                 document.getElementById('status').innerText = "Kamera bersedia. Mula mengimbas...";
@@ -169,7 +159,6 @@ function startCamera() {
                 let bestMatchName = "Tidak Dikenali";
                 let lowestDist = 1.0;
 
-                // Baiki: Semak wajah live dengan KETIGA-TIGA sampel wajah dalam database
                 for (let user of registeredUsers) {
                     if (user.descriptors && user.descriptors.length > 0) {
                         for (let savedDesc of user.descriptors) {
@@ -182,10 +171,11 @@ function startCamera() {
                     }
                 }
 
-                if (lowestDist < 0.55) { // Threshold dilonggarkan sedikit ke 0.45
+                // Threshold ditetapkan pada 0.55 untuk toleransi cermin mata
+                if (lowestDist < 0.55) { 
                     isProcessing = true;
                     beep.play();
-                    statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
+                    statusBox.innerText = `Berjaya mengecam wajah...`;
                     statusBox.style.color = "green";
                     saveAttendance(bestMatchName);
                     return; 
@@ -194,7 +184,7 @@ function startCamera() {
                     statusBox.style.color = "red";
                 }
             } else {
-                statusBox.innerText = "Mencari wajah... (Pastikan cahaya cukup)";
+                statusBox.innerText = "Mencari wajah...";
                 statusBox.style.color = "#475569";
             }
         } catch (error) {
@@ -203,16 +193,14 @@ function startCamera() {
             statusBox.style.color = "red";
         }
     }
+
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
-        
-        // Pilih kotak status untuk dikawal
         const statusBox = document.getElementById('status'); 
         
         try {
-            // 1. Semak Firebase jika nama ini sudah ada rekod pada hari ini
             const qAtt = query(collection(db, "attendance"), where("name", "==", name));
             const querySnapshot = await getDocs(qAtt);
             
@@ -233,42 +221,31 @@ function startCamera() {
             const overlayIcon = document.getElementById('overlayIcon');
 
             if (alreadyScanned) {
-                // KES A: SUDAH IMBAS HARI INI
-                overlay.style.backgroundColor = "#f59e0b"; // Warna Oren
+                overlay.style.backgroundColor = "#f59e0b"; // Oren
                 overlayIcon.innerText = "ℹ️";
-                overlayText.innerHTML = `SUDAH DIREKODKAN<br>${name}<br><br><span style="font-size:1rem; opacity:0.9">Anda telah mengimbas pada jam ${firstScannedTime}</span>`;
+                overlayText.innerHTML = `SUDAH DIREKODKAN<br>${name}<br><br><span style="font-size:1rem; opacity:0.9">Telah diimbas jam ${firstScannedTime}</span>`;
             } else {
-                // KES B: BELUM IMBAS, SIMPAN REKOD BARU
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
-                
-                overlay.style.backgroundColor = "var(--success)"; // Warna Hijau
+                overlay.style.backgroundColor = "#22c55e"; // Hijau
                 overlayIcon.innerText = "✅";
                 overlayText.innerHTML = `REKOD BERJAYA<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
             }
 
-            // Paparkan skrin penuh (Overlay) supaya jelas nampak dari jauh
             overlay.style.display = "flex";
             
-            // --- BAHAGIAN PENTING: RESET SEMULA SISTEM ---
             setTimeout(() => {
-                // 1. Tutup paparan skrin penuh
                 overlay.style.display = "none"; 
-                
-                // 2. Kembalikan kotak status kepada asal
                 statusBox.innerText = "Mencari wajah..."; 
                 statusBox.style.color = "#475569";
-                
-                // 3. Lepaskan AI untuk mula scan orang seterusnya
                 isProcessing = false;
                 lastScanTime = 0; 
-            }, 3500); // Masa bertenang 3.5 saat sebelum sistem bersedia semula
+            }, 3500);
 
         } catch (e) {
-            console.error("Ralat Pangkalan Data:", e);
+            console.error("Ralat DB:", e);
             statusBox.innerText = "Ralat Rangkaian. Sila cuba lagi.";
             statusBox.style.color = "red";
             
-            // Jika ralat pun, mesti reset semula selepas 3 saat
             setTimeout(() => {
                 statusBox.innerText = "Mencari wajah..."; 
                 statusBox.style.color = "#475569";
@@ -279,10 +256,3 @@ function startCamera() {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
