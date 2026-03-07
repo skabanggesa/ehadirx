@@ -578,8 +578,8 @@
             statusLabel.style.color = "var(--warning)";
             await new Promise(r => setTimeout(r, 1000));
 
-            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
-                .withFaceLandmarks().withFaceDescriptor();
+            const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
+    .withFaceLandmarks().withFaceDescriptor();
 
             if (det) {
                 descriptors.push({ d: Array.from(det.descriptor) });
@@ -736,4 +736,5 @@
 </script>
 </body>
 </html>
+
 
