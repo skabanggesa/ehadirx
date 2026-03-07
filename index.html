@@ -138,24 +138,40 @@
 
 async function doScan() {
         const video = document.getElementById('video');
+        const statusBox = document.getElementById('status'); // Kita panggil kotak status
         
-        // 1. KEMASKINI: Saiz 224 (lebih tajam) & scoreThreshold 0.4 (lebih sensitif pada wajah kabur)
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         
         if (detection) {
+            let bestMatchName = "Tidak Dikenali";
+            let lowestDist = 1.0; // Nilai awal yang tinggi
+
+            // Semak dengan semua data dalam Firebase
             for (let user of registeredUsers) {
                 const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                
-                // 2. KEMASKINI: Tahap sensitiviti 0.40 (seimbang untuk cermin mata & kamera kualiti rendah)
-                if (dist < 0.40) { 
-                    isProcessing = true;
-                    beep.play();
-                    saveAttendance(user.name);
-                    return; 
+                if (dist < lowestDist) {
+                    lowestDist = dist;
+                    bestMatchName = user.name;
                 }
             }
+
+            // Jika AI nampak wajah, beritahu kita markahnya!
+            if (lowestDist < 0.40) { 
+                isProcessing = true;
+                beep.play();
+                statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
+                saveAttendance(bestMatchName);
+                return; 
+            } else {
+                // INI BAHAGIAN PENTING UNTUK DEBUGGING
+                statusBox.innerText = `Wajah dikesan! Tapi skor jauh: ${lowestDist.toFixed(2)} (Mesti bawah 0.40)`;
+                statusBox.style.color = "red"; // Tukar tulisan jadi merah
+            }
+        } else {
+            statusBox.innerText = "Mencari wajah... (Pastikan cahaya cukup)";
+            statusBox.style.color = "#475569"; // Warna asal
         }
     }
 
@@ -198,4 +214,5 @@ async function doScan() {
 </script>
 </body>
 </html>
+
 
