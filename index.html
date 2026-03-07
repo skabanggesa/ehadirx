@@ -133,7 +133,7 @@
         });
     }
 
-    async function scanLoop(now) {
+   async function scanLoop(now) {
         // Jika sedang simpan data (3.5 saat), teruskan putaran kamera tapi jangan scan muka dulu
         if (isProcessing) {
             requestAnimationFrame(scanLoop);
@@ -148,6 +148,7 @@
         // Panggil putaran ini berulang-ulang kali (jangan biarkan ia mati)
         requestAnimationFrame(scanLoop);
     }
+
     async function doScan() {
         const video = document.getElementById('video');
         const statusBox = document.getElementById('status');
@@ -260,5 +261,3 @@
 </script>
 </body>
 </html>
-
-
