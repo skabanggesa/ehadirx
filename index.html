@@ -136,19 +136,20 @@
         requestAnimationFrame(scanLoop);
     }
 
-    async function doScan() {
+async function doScan() {
         const video = document.getElementById('video');
         
-        // inputSize 224 untuk kecerahan AI mengesan cermin mata tanpa membebankan peranti
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+        // 1. KEMASKINI: Saiz 224 (lebih tajam) & scoreThreshold 0.4 (lebih sensitif pada wajah kabur)
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         
         if (detection) {
             for (let user of registeredUsers) {
                 const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                // Sensitiviti pada 0.38 untuk mengelakkan salah cam orang lain
-                if (dist < 0.38) { 
+                
+                // 2. KEMASKINI: Tahap sensitiviti 0.40 (seimbang untuk cermin mata & kamera kualiti rendah)
+                if (dist < 0.40) { 
                     isProcessing = true;
                     beep.play();
                     saveAttendance(user.name);
@@ -197,3 +198,4 @@
 </script>
 </body>
 </html>
+
