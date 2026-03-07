@@ -182,7 +182,7 @@ function startCamera() {
                     }
                 }
 
-                if (lowestDist < 0.45) { // Threshold dilonggarkan sedikit ke 0.45
+                if (lowestDist < 0.55) { // Threshold dilonggarkan sedikit ke 0.45
                     isProcessing = true;
                     beep.play();
                     statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
@@ -242,6 +242,7 @@ function startCamera() {
 </script>
 </body>
 </html>
+
 
 
 
