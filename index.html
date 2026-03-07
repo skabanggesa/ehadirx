@@ -210,38 +210,60 @@ function startCamera() {
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
         try {
+            // 1. Semak Firebase jika nama ini sudah ada rekod pada hari ini
             const qAtt = query(collection(db, "attendance"), where("name", "==", name));
             const querySnapshot = await getDocs(qAtt);
-            let existingDocId = null;
+            
+            let alreadyScanned = false;
+            let firstScannedTime = "";
 
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
                 const ts = data.timestamp?.toDate();
-                if (ts && ts.toLocaleDateString('en-CA') === todayStr) existingDocId = doc.id;
+                // Jika tarikh rekod sama dengan tarikh hari ini
+                if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
+                    alreadyScanned = true;
+                    firstScannedTime = ts.toLocaleTimeString(); // Ambil masa imbasan pertama kali
+                }
             });
 
-            if (existingDocId) {
-                await updateDoc(doc(db, "attendance", existingDocId), { timestamp: serverTimestamp(), status: status + " (Update)" });
+            const overlay = document.getElementById('overlay');
+            const overlayText = document.getElementById('overlayText');
+            const overlayIcon = document.getElementById('overlayIcon');
+
+            if (alreadyScanned) {
+                // KES A: SUDAH IMBAS HARI INI (Hanya papar mesej, jangan save data baru)
+                overlay.style.backgroundColor = "#f59e0b"; // Warna Oren/Kuning untuk amaran
+                overlayIcon.innerText = "ℹ️";
+                overlayText.innerHTML = `SUDAH DIREKODKAN<br>${name}<br><br><span style="font-size:1rem; opacity:0.9">Anda telah pun mengimbas kehadiran hari ini pada jam ${firstScannedTime}</span>`;
             } else {
+                // KES B: BELUM IMBAS HARI INI (Simpan data ke Firebase)
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
+                
+                overlay.style.backgroundColor = "var(--success)"; // Warna Hijau
+                overlayIcon.innerText = "✅";
+                overlayText.innerHTML = `REKOD BERJAYA<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
             }
 
-            const overlay = document.getElementById('overlay');
-            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
+            // Paparkan skrin penuh (Overlay)
             overlay.style.display = "flex";
             
+            // Jeda 4 saat supaya pengguna sempat baca, kemudian sedia untuk imbas orang seterusnya
             setTimeout(() => {
                 overlay.style.display = "none";
                 isProcessing = false;
-                lastScanTime = 0; // Reset timer
-            }, 3000);
+                lastScanTime = 0; // Reset timer untuk AI
+            }, 4000);
+
         } catch (e) {
+            console.error("Ralat Pangkalan Data:", e);
             isProcessing = false;
         }
     }
 </script>
 </body>
 </html>
+
 
 
 
