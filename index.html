@@ -100,14 +100,24 @@
 
         try {
             const snap = await getDocs(collection(db, "users"));
-            registeredUsers = snap.docs.map(doc => ({
-                name: doc.data().name,
-                descriptor: new Float32Array(doc.data().descriptor)
-            }));
+            registeredUsers = snap.docs.map(doc => {
+                const data = doc.data();
+                // Baiki: Tarik 'descriptors' (3 sampel) yang disimpan dari admin.html
+                let userDescs = [];
+                if (data.descriptors && Array.isArray(data.descriptors)) {
+                    userDescs = data.descriptors.map(item => new Float32Array(item.d));
+                }
+                return {
+                    name: data.name,
+                    descriptors: userDescs
+                };
+            });
             startCamera();
-        } catch (err) { alert("Ralat data."); }
+        } catch (err) { 
+            alert("Ralat memuatkan data: " + err.message); 
+            console.error(err);
+        }
     };
-
 function startCamera() {
         navigator.mediaDevices.getUserMedia({ 
             video: { 
@@ -149,7 +159,6 @@ function startCamera() {
         const statusBox = document.getElementById('status');
         
         try {
-            // Elakkan AI membaca video yang belum ada saiz (punca ia sangkut)
             if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
             const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
@@ -160,15 +169,20 @@ function startCamera() {
                 let bestMatchName = "Tidak Dikenali";
                 let lowestDist = 1.0;
 
+                // Baiki: Semak wajah live dengan KETIGA-TIGA sampel wajah dalam database
                 for (let user of registeredUsers) {
-                    const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                    if (dist < lowestDist) {
-                        lowestDist = dist;
-                        bestMatchName = user.name;
+                    if (user.descriptors && user.descriptors.length > 0) {
+                        for (let savedDesc of user.descriptors) {
+                            const dist = faceapi.euclideanDistance(detection.descriptor, savedDesc);
+                            if (dist < lowestDist) {
+                                lowestDist = dist;
+                                bestMatchName = user.name;
+                            }
+                        }
                     }
                 }
 
-                if (lowestDist < 0.40) { 
+                if (lowestDist < 0.45) { // Threshold dilonggarkan sedikit ke 0.45
                     isProcessing = true;
                     beep.play();
                     statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
@@ -180,11 +194,10 @@ function startCamera() {
                     statusBox.style.color = "red";
                 }
             } else {
-                statusBox.innerText = "Mencari wajah... (AI tak nampak muka)";
+                statusBox.innerText = "Mencari wajah... (Pastikan cahaya cukup)";
                 statusBox.style.color = "#475569";
             }
         } catch (error) {
-            // Jika ada ralat, ia akan beritahu kita di sini!
             console.error("Ralat AI:", error);
             statusBox.innerText = "Sistem AI Gagal. Sila semak Console.";
             statusBox.style.color = "red";
@@ -229,6 +242,7 @@ function startCamera() {
 </script>
 </body>
 </html>
+
 
 
 
