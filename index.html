@@ -206,8 +206,10 @@ function startCamera() {
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
-        // Tetapan logik masa hadir / lewat
         const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
+        
+        // Pilih kotak status untuk dikawal
+        const statusBox = document.getElementById('status'); 
         
         try {
             // 1. Semak Firebase jika nama ini sudah ada rekod pada hari ini
@@ -220,10 +222,9 @@ function startCamera() {
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
                 const ts = data.timestamp?.toDate();
-                // Jika tarikh rekod sama dengan tarikh hari ini
                 if (ts && ts.toLocaleDateString('en-CA') === todayStr) {
                     alreadyScanned = true;
-                    firstScannedTime = ts.toLocaleTimeString(); // Ambil masa imbasan pertama kali
+                    firstScannedTime = ts.toLocaleTimeString(); 
                 }
             });
 
@@ -232,12 +233,12 @@ function startCamera() {
             const overlayIcon = document.getElementById('overlayIcon');
 
             if (alreadyScanned) {
-                // KES A: SUDAH IMBAS HARI INI (Hanya papar mesej, jangan save data baru)
-                overlay.style.backgroundColor = "#f59e0b"; // Warna Oren/Kuning untuk amaran
+                // KES A: SUDAH IMBAS HARI INI
+                overlay.style.backgroundColor = "#f59e0b"; // Warna Oren
                 overlayIcon.innerText = "ℹ️";
-                overlayText.innerHTML = `SUDAH DIREKODKAN<br>${name}<br><br><span style="font-size:1rem; opacity:0.9">Anda telah pun mengimbas kehadiran hari ini pada jam ${firstScannedTime}</span>`;
+                overlayText.innerHTML = `SUDAH DIREKODKAN<br>${name}<br><br><span style="font-size:1rem; opacity:0.9">Anda telah mengimbas pada jam ${firstScannedTime}</span>`;
             } else {
-                // KES B: BELUM IMBAS HARI INI (Simpan data ke Firebase)
+                // KES B: BELUM IMBAS, SIMPAN REKOD BARU
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
                 
                 overlay.style.backgroundColor = "var(--success)"; // Warna Hijau
@@ -245,24 +246,40 @@ function startCamera() {
                 overlayText.innerHTML = `REKOD BERJAYA<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
             }
 
-            // Paparkan skrin penuh (Overlay)
+            // Paparkan skrin penuh (Overlay) supaya jelas nampak dari jauh
             overlay.style.display = "flex";
             
-            // Jeda 4 saat supaya pengguna sempat baca, kemudian sedia untuk imbas orang seterusnya
+            // --- BAHAGIAN PENTING: RESET SEMULA SISTEM ---
             setTimeout(() => {
-                overlay.style.display = "none";
+                // 1. Tutup paparan skrin penuh
+                overlay.style.display = "none"; 
+                
+                // 2. Kembalikan kotak status kepada asal
+                statusBox.innerText = "Mencari wajah..."; 
+                statusBox.style.color = "#475569";
+                
+                // 3. Lepaskan AI untuk mula scan orang seterusnya
                 isProcessing = false;
-                lastScanTime = 0; // Reset timer untuk AI
-            }, 4000);
+                lastScanTime = 0; 
+            }, 3500); // Masa bertenang 3.5 saat sebelum sistem bersedia semula
 
         } catch (e) {
             console.error("Ralat Pangkalan Data:", e);
-            isProcessing = false;
+            statusBox.innerText = "Ralat Rangkaian. Sila cuba lagi.";
+            statusBox.style.color = "red";
+            
+            // Jika ralat pun, mesti reset semula selepas 3 saat
+            setTimeout(() => {
+                statusBox.innerText = "Mencari wajah..."; 
+                statusBox.style.color = "#475569";
+                isProcessing = false;
+            }, 3000);
         }
     }
 </script>
 </body>
 </html>
+
 
 
 
