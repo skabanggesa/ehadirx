@@ -3,29 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sistem Kehadiran Digital V1.1 - Smart Role</title>
+    <title>Sistem Kehadiran Digital V1.0 - Turbo</title>
     
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
         :root { --primary: #0f172a; --accent: #3b82f6; --success: #22c55e; --bg: #f8fafc; }
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-        .container { width: 90%; max-width: 420px; background: white; padding: 30px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center; position: relative; }
-        .logo { width: 60px; margin-bottom: 10px; }
-        h1 { font-size: 1.2rem; color: var(--primary); margin: 0; font-weight: 800; }
-        .status-box { padding: 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569; }
-        
-        /* Video & Canvas Styling */
-        .video-wrapper { position: relative; width: 100%; border-radius: 18px; overflow: hidden; background: #000; display: none; aspect-ratio: 4/3; }
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
-
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 90%; max-width: 420px; background: white; padding: 40px 30px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center; }
+        .logo { width: 80px; margin-bottom: 15px; }
+        h1 { font-size: 1.4rem; color: var(--primary); margin: 0; font-weight: 800; }
+        .status-box { padding: 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; margin-bottom: 25px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569; }
+        video { width: 100%; border-radius: 18px; background: #000; display: none; transform: scaleX(-1); }
         input { width: 100%; padding: 16px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.1rem; text-align: center; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; }
-        .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(8px); }
-        .bg-success { background: rgba(34, 197, 94, 0.9); }
-        .bg-late { background: rgba(245, 158, 11, 0.9); } /* Warna oren untuk lewat */
+        .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .bg-success { background: var(--success); }
     </style>
 </head>
 <body>
@@ -38,7 +32,7 @@
 <div class="container">
     <img src="ehadir.png" alt="Logo" class="logo">
     <h1>E-HADIR DIGITAL</h1>
-    <p style="font-size: 0.75rem; color: #64748b; margin-top: 5px; margin-bottom: 20px;">VERSI PINTAR (GURU & AKP)</p>
+    <p style="font-size: 0.75rem; color: #64748b; margin-top: 5px; margin-bottom: 30px;">EDISI PINTAR V1.0</p>
 
     <div id="status" class="status-box">Memulakan sistem AI...</div>
 
@@ -47,10 +41,7 @@
         <button class="btn-main" onclick="verifyPin()">AKTIFKAN IMBASAN</button>
     </div>
 
-    <div id="videoWrapper" class="video-wrapper">
-        <video id="video" autoplay muted playsinline></video>
-        <canvas id="overlayCanvas"></canvas>
-    </div>
+    <video id="video" autoplay muted playsinline></video>
 </div>
 
 <script type="module">
@@ -58,182 +49,121 @@
     import { getFirestore, collection, addDoc, getDocs, query, where, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-        apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
-        authDomain: "e-hadir-ba989.firebaseapp.com",
-        projectId: "e-hadir-ba989",
-        storageBucket: "e-hadir-ba989.firebasestorage.app",
-        messagingSenderId: "777207462690",
-        appId: "1:777207462690:web:0c65d249532428bea6437b",
-        measurementId: "G-062X22JHXY"
+      apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
+      authDomain: "e-hadir-ba989.firebaseapp.com",
+      projectId: "e-hadir-ba989",
+      storageBucket: "e-hadir-ba989.firebasestorage.app",
+      messagingSenderId: "777207462690",
+      appId: "1:777207462690:web:0c65d249532428bea6437b",
+      measurementId: "G-062X22JHXY"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
     const DAILY_PIN = "123456"; 
-    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models/';
-    
-    let faceMatcher = null;
+    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+    let registeredUsers = [];
     let isProcessing = false;
     let lastScanTime = 0;
-    
-    // VARIABLE BARU: Untuk simpan mapping Nama -> Jawatan
-    let userRoles = {}; 
-
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
     // 1. MUAT MODEL & WARM-UP
     async function initSystem() {
         try {
-            const status = document.getElementById('status');
             await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
             await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
             await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             
-            // Warm-up
+            // Warm-up: Jalankan satu pengesanan kosong supaya enjin AI 'panas'
+            console.log("AI Warming up...");
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 128; tempCanvas.height = 128;
+            // Saiz Warm-up diselaraskan ke 224
+            tempCanvas.width = 224; tempCanvas.height = 224;
             await faceapi.detectSingleFace(tempCanvas, new faceapi.TinyFaceDetectorOptions());
             
-            status.innerText = "Sistem sedia. Masukkan PIN.";
+            document.getElementById('status').innerText = "Sistem sedia. Masukkan PIN.";
             document.getElementById('pinSection').style.display = "block";
         } catch (e) {
-            document.getElementById('status').innerText = "Ralat AI: Pastikan internet stabil.";
+            document.getElementById('status').innerText = "Gagal memuatkan AI. Periksa internet.";
         }
     }
     initSystem();
 
-    // 2. VERIFIKASI PIN & LOAD DATA (TERMASUK ROLE)
     window.verifyPin = async function() {
         if(document.getElementById('pinInput').value !== DAILY_PIN) {
             alert("PIN Salah!"); return;
         }
 
         document.getElementById('pinSection').style.display = "none";
-        document.getElementById('status').innerText = "Menyusun data wajah & jawatan...";
+        document.getElementById('status').innerText = "Memuatkan pangkalan data...";
 
         try {
             const snap = await getDocs(collection(db, "users"));
-            const labeledDescriptors = [];
-            
-            // Kosongkan mapping lama
-            userRoles = {};
-
-            snap.forEach(doc => {
-                const data = doc.data();
-                
-                // SIMPAN JAWATAN KE DALAM MEMORI
-                // Jika tiada role dalam DB, kita anggap default = "GURU"
-                userRoles[data.name] = data.role || "GURU";
-
-                // Proses Face Descriptor
-                if (data.descriptor) { // Data lama
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, [new Float32Array(data.descriptor)]));
-                } 
-                else if (data.descriptors) { // Data baru
-                    const descArray = data.descriptors.map(item => new Float32Array(item.d));
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(data.name, descArray));
-                }
-            });
-
-            if (labeledDescriptors.length === 0) {
-                alert("Tiada guru didaftarkan.");
-                location.reload();
-                return;
-            }
-
-            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
+            registeredUsers = snap.docs.map(doc => ({
+                name: doc.data().name,
+                descriptor: new Float32Array(doc.data().descriptor)
+            }));
             startCamera();
-        } catch (err) { 
-            console.error(err);
-            alert("Ralat memuat turun data."); 
-        }
+        } catch (err) { alert("Ralat data."); }
     };
-    
-    // 3. KAMERA
+
     function startCamera() {
         navigator.mediaDevices.getUserMedia({ 
-            video: { width: 400, height: 300, facingMode: "user" } 
+            video: { 
+                width: { ideal: 400 }, 
+                height: { ideal: 300 }, 
+                facingMode: "user" 
+            } 
         })
         .then(stream => {
             const video = document.getElementById('video');
             video.srcObject = stream;
-            document.getElementById('videoWrapper').style.display = "block";
-            document.getElementById('status').innerText = "Sila pandang kamera";
-            
-            video.onloadedmetadata = () => {
-                requestAnimationFrame(scanLoop);
-            };
+            video.style.display = "block";
+            document.getElementById('status').innerText = "Mencari wajah...";
+            requestAnimationFrame(scanLoop);
         });
     }
 
-    // 4. LOOP IMBASAN
     async function scanLoop(now) {
-        if(isProcessing) return requestAnimationFrame(scanLoop);
-        if (now - lastScanTime >= 100) {
+        if(isProcessing) return;
+
+        if (!lastScanTime || now - lastScanTime >= 150) {
             lastScanTime = now;
             await doScan();
         }
+        
         requestAnimationFrame(scanLoop);
     }
 
-    // 5. PROSES PENGESANAN WAJAH
     async function doScan() {
         const video = document.getElementById('video');
-        const canvas = document.getElementById('overlayCanvas');
-        const displaySize = { width: video.videoWidth, height: video.videoHeight };
         
-        if (canvas.width !== displaySize.width) {
-            faceapi.matchDimensions(canvas, displaySize);
-        }
-
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }))
+        // inputSize 224 untuk kecerahan AI mengesan cermin mata tanpa membebankan peranti
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
         
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         if (detection) {
-            const resizedDetection = faceapi.resizeResults(detection, displaySize);
-            ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 4;
-            ctx.strokeRect(resizedDetection.detection.box.x, resizedDetection.detection.box.y, resizedDetection.detection.box.width, resizedDetection.detection.box.height);
-
-            const result = faceMatcher.findBestMatch(detection.descriptor);
-            
-            if (result.label !== 'unknown') {
-                isProcessing = true;
-                beep.play();
-                saveAttendance(result.label);
+            for (let user of registeredUsers) {
+                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
+                // Sensitiviti pada 0.38 untuk mengelakkan salah cam orang lain
+                if (dist < 0.38) { 
+                    isProcessing = true;
+                    beep.play();
+                    saveAttendance(user.name);
+                    return; 
+                }
             }
         }
     }
 
-    // 6. SIMPAN KE FIREBASE (LOGIK LEWAT MENGIKUT ROLE)
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
-        const currentTimeStr = now.toTimeString().substring(0, 5); // Format "HH:MM", contoh "07:15"
-
-        // === LOGIK BARU MULA DI SINI ===
+        // Tetapan logik masa hadir / lewat
+        const status = (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() > 45)) ? "Lewat" : "Hadir";
         
-        // 1. Dapatkan Role user dari memori (userRoles)
-        // Kalau tak jumpa nama, default ke "GURU"
-        const role = (userRoles[name] || "GURU").toUpperCase(); 
-        
-        // 2. Tentukan masa cutoff
-        let cutoffTime = "07:10"; // Masa lewat untuk Guru
-        if (role === "AKP") {
-            cutoffTime = "08:00"; // Masa lewat untuk AKP
-        }
-
-        // 3. Bandingkan masa sekarang dengan cutoff
-        // Jika masa sekarang (contoh 07:15) lebih besar dari cutoff (07:10), maka status LEWAT
-        const isLate = currentTimeStr > cutoffTime;
-        const status = isLate ? "Lewat" : "Hadir";
-
-        // === LOGIK TAMAT ===
-
         try {
             const qAtt = query(collection(db, "attendance"), where("name", "==", name));
             const querySnapshot = await getDocs(qAtt);
@@ -251,27 +181,16 @@
                 await addDoc(collection(db, "attendance"), { name: name, timestamp: serverTimestamp(), status: status });
             }
 
-            // Tunjukkan Overlay
             const overlay = document.getElementById('overlay');
-            const bgClass = isLate ? "bg-late" : "bg-success"; // Tukar warna background jika lewat
-            
-            overlay.className = `overlay ${bgClass}`; // Reset class
+            document.getElementById('overlayText').innerHTML = `REKOD DIKEMASKINI<br>${name}<br><br><span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>`;
             overlay.style.display = "flex";
-
-            document.getElementById('overlayText').innerHTML = `
-                REKOD ${isLate ? "LEWAT" : "BERJAYA"}<br>
-                ${name}<br>
-                <span style="font-size:0.8rem; background:rgba(0,0,0,0.2); padding:2px 8px; border-radius:4px;">${role}</span>
-                <br><br>
-                <span style="font-size:1rem; opacity:0.8">${status} pada ${now.toLocaleTimeString()}</span>
-            `;
             
             setTimeout(() => {
                 overlay.style.display = "none";
                 isProcessing = false;
+                lastScanTime = 0; // Reset timer
             }, 3000);
         } catch (e) {
-            console.error(e);
             isProcessing = false;
         }
     }
