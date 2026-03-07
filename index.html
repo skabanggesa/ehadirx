@@ -108,7 +108,7 @@
         } catch (err) { alert("Ralat data."); }
     };
 
-    function startCamera() {
+function startCamera() {
         navigator.mediaDevices.getUserMedia({ 
             video: { 
                 width: { ideal: 400 }, 
@@ -120,8 +120,16 @@
             const video = document.getElementById('video');
             video.srcObject = stream;
             video.style.display = "block";
-            document.getElementById('status').innerText = "Mencari wajah...";
-            requestAnimationFrame(scanLoop);
+            
+            // KEMASKINI PENTING: Tunggu video betul-betul 'hidup' baru mula AI
+            video.onloadedmetadata = () => {
+                video.play();
+                document.getElementById('status').innerText = "Kamera bersedia. Mula mengimbas...";
+                requestAnimationFrame(scanLoop);
+            };
+        })
+        .catch(err => {
+            document.getElementById('status').innerText = "Ralat Kamera: " + err.message;
         });
     }
 
@@ -136,45 +144,52 @@
         requestAnimationFrame(scanLoop);
     }
 
-async function doScan() {
+    async function doScan() {
         const video = document.getElementById('video');
-        const statusBox = document.getElementById('status'); // Kita panggil kotak status
+        const statusBox = document.getElementById('status');
         
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-        
-        if (detection) {
-            let bestMatchName = "Tidak Dikenali";
-            let lowestDist = 1.0; // Nilai awal yang tinggi
+        try {
+            // Elakkan AI membaca video yang belum ada saiz (punca ia sangkut)
+            if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-            // Semak dengan semua data dalam Firebase
-            for (let user of registeredUsers) {
-                const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
-                if (dist < lowestDist) {
-                    lowestDist = dist;
-                    bestMatchName = user.name;
+            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+            
+            if (detection) {
+                let bestMatchName = "Tidak Dikenali";
+                let lowestDist = 1.0;
+
+                for (let user of registeredUsers) {
+                    const dist = faceapi.euclideanDistance(detection.descriptor, user.descriptor);
+                    if (dist < lowestDist) {
+                        lowestDist = dist;
+                        bestMatchName = user.name;
+                    }
                 }
-            }
 
-            // Jika AI nampak wajah, beritahu kita markahnya!
-            if (lowestDist < 0.40) { 
-                isProcessing = true;
-                beep.play();
-                statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
-                saveAttendance(bestMatchName);
-                return; 
+                if (lowestDist < 0.40) { 
+                    isProcessing = true;
+                    beep.play();
+                    statusBox.innerText = `Berjaya! ${bestMatchName} disahkan.`;
+                    statusBox.style.color = "green";
+                    saveAttendance(bestMatchName);
+                    return; 
+                } else {
+                    statusBox.innerText = `Wajah dikesan! Tapi skor jauh: ${lowestDist.toFixed(2)}`;
+                    statusBox.style.color = "red";
+                }
             } else {
-                // INI BAHAGIAN PENTING UNTUK DEBUGGING
-                statusBox.innerText = `Wajah dikesan! Tapi skor jauh: ${lowestDist.toFixed(2)} (Mesti bawah 0.40)`;
-                statusBox.style.color = "red"; // Tukar tulisan jadi merah
+                statusBox.innerText = "Mencari wajah... (AI tak nampak muka)";
+                statusBox.style.color = "#475569";
             }
-        } else {
-            statusBox.innerText = "Mencari wajah... (Pastikan cahaya cukup)";
-            statusBox.style.color = "#475569"; // Warna asal
+        } catch (error) {
+            // Jika ada ralat, ia akan beritahu kita di sini!
+            console.error("Ralat AI:", error);
+            statusBox.innerText = "Sistem AI Gagal. Sila semak Console.";
+            statusBox.style.color = "red";
         }
     }
-
     async function saveAttendance(name) {
         const now = new Date();
         const todayStr = now.toLocaleDateString('en-CA');
@@ -214,5 +229,6 @@ async function doScan() {
 </script>
 </body>
 </html>
+
 
 
