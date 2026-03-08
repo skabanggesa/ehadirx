@@ -262,9 +262,15 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
             video.srcObject = stream;
             
-            const hariIni = new Date().toISOString().split('T')[0];
+            // --- KEMASKINI: Dapatkan tarikh ikut waktu tempatan (Malaysia), bukan UTC ---
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hariIni = `${year}-${month}-${day}`;
+            
             document.getElementById('dateFilter').value = hariIni;
-            document.getElementById('analysisDate').value = hariIni; // Set analysis date to today by default
+            document.getElementById('analysisDate').value = hariIni; // Kekalkan baris ini
             
             startDataListeners();
         } catch (err) { console.error("Ralat Kamera:", err); }
@@ -736,5 +742,6 @@
 </script>
 </body>
 </html>
+
 
 
