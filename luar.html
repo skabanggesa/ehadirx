@@ -75,7 +75,13 @@
 <body>
 
     <div class="container">
-        <h2>📍 Tugas Luar</h2>
+        <h2>📍 Rekod Luar</h2>
+        
+        <select id="statusPilihan" class="login-input" style="margin-bottom: 15px; font-weight: 700; color: #0f172a; font-size: 1rem; text-align: center;">
+            <option value="Tugas Luar">Tugas Luar</option>
+            <option value="Cuti Rehat Khas">Cuti Rehat Khas (CRK)</option>
+            <option value="Cuti Rehat">Cuti Rehat (CR)</option>
+        </select>
         
         <video id="video" autoplay muted playsinline></video>
         
@@ -272,8 +278,11 @@
             dapatkanGPSdanSimpan(selectedName);
         };
 
-        // 4. Tarik GPS & Simpan 
+// 4. Tarik GPS & Simpan 
         async function dapatkanGPSdanSimpan(namaGuru) {
+            // AMBIL NILAI DARI DROPDOWN
+            const statusSemasa = document.getElementById("statusPilihan").value;
+
             statusText.innerText = `Identiti Disahkan: ${namaGuru}. Mengesan Lokasi GPS...`;
             statusText.style.background = "#e0f2fe";
             statusText.style.color = "#0369a1";
@@ -283,18 +292,19 @@
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
-                    // Nota: Saya guna URL Google Maps yang rasmi supaya butang di admin.html berfungsi dengan sempurna.
                     const mapLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
                     try {
+                        // KEMASKINI BLOK INI
                         await addDoc(collection(db, "attendance"), {
                             name: namaGuru,
-                            status: "Tugas Luar",
+                            status: statusSemasa, // Guna pembolehubah dropdown di sini
                             locationLink: mapLink,
                             timestamp: serverTimestamp()
                         });
 
-                        statusText.innerText = `✅ Selesai! Kehadiran Tugas Luar direkodkan.`;
+                        // Mesej berjaya yang dinamis
+                        statusText.innerText = `✅ Selesai! Rekod ${statusSemasa} telah disimpan.`;
                         statusText.style.background = "#d1fae5";
                         statusText.style.color = "#065f46";
                     } catch (error) {
