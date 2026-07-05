@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>E-Hadir | Lapor Tugas Luar</title>
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #0f172a; --accent: #8b5cf6; --success: #22c55e; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 90%; max-width: 420px; background: white; padding: 40px 30px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center; }
+        h1 { font-size: 1.4rem; color: var(--primary); margin: 0; font-weight: 800; }
+        .status-box { padding: 14px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; margin-bottom: 25px; border: 1px solid #e2e8f0; background: #f1f5f9; color: #475569; }
+        video { width: 100%; border-radius: 18px; background: #000; display: none; transform: scaleX(-1); margin-top: 15px; }
+        .btn-main { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; font-size: 1.1rem; }
+        .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; background: rgba(15, 23, 42, 0.95); }
+    </style>
+</head>
+<body>
+
+<div id="overlay" class="overlay">
+    <div style="font-size: 5rem; margin-bottom: 10px;">📍</div>
+    <div id="overlayText" style="font-size: 1.2rem; font-weight: 800; text-align: center; padding: 20px;"></div>
+</div>
+
+<div class="container">
+    <div style="font-size: 3rem; margin-bottom: 15px;">🌍</div>
+    <h1>LAPOR TUGAS LUAR</h1>
+    <p style="font-size: 0.8rem; color: #64748b; margin-top: 5px; margin-bottom: 30px;">Sistem Pengesahan GPS & Biometrik</p>
+
+    <div id="status" class="status-box">Sistem sedia. Tekan butang di bawah untuk mula.</div>
+
+    <button id="startBtn" class="btn-main" onclick="startProcess()">📍 DAPATKAN LOKASI & IMBAS</button>
+
+    <video id="video" autoplay muted playsinline></video>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
+      authDomain: "e-hadir-ba989.firebaseapp.com",
+      projectId: "e-hadir-ba989",
+      storageBucket: "e-hadir-ba989.firebasestorage.app",
+      messagingSenderId: "777207462690",
+      appId: "1:777207462690:web:0c65d249532428bea6437b"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model/';
+    let registeredUsers = [];
+    let isProcessing = false;
+    let userLocation = null;
+
+    async function initSystem() {
+        document.getElementById('status').innerText = "Memuatkan Enjin AI...";
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+            
+            // Tarik data guru
+            const snap = await getDocs(collection(db, "users"));
+            registeredUsers = snap.docs.map(doc => {
+                const data = doc.data();
+                let userDescs = [];
+                if (data.descriptors && Array.isArray(data.descriptors)) {
+                    userDescs = data.descriptors.map(item => new Float32Array(item.d));
+                }
+                return { name: data.name, descriptors: userDescs };
+            });
+
+            document.getElementById('status').innerText = "Sistem bersedia. Sila aktifkan pengesan lokasi.";
+        } catch (e) {
+            document.getElementById('status').innerText = "Gagal memuatkan sistem.";
+            console.error(e);
+        }
+    }
+    initSystem();
+
+    window.startProcess = function() {
+        if (!navigator.geolocation) {
+            alert("Telefon anda tidak menyokong fungsi GPS.");
+            return;
+        }
+
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('status').innerText = "Mendapatkan koodinat GPS...";
+        
+        // Minta kebenaran lokasi GPS
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                document.getElementById('status').innerText = "Lokasi disahkan. Menghidupkan kamera...";
+                startCamera(); // Selepas dapat GPS, baru buka kamera
+            },
+            (error) => {
+                alert("Ralat GPS: Sila benarkan (allow) akses lokasi pada browser anda.");
+                document.getElementById('startBtn').style.display = 'block';
+                document.getElementById('status').innerText = "Akses lokasi ditolak.";
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+        .then(stream => {
+            const video = document.getElementById('video');
+            video.srcObject = stream;
+            video.style.display = "block";
+            
+            video.onloadedmetadata = () => {
+                video.play();
+                document.getElementById('status').innerText = "Kamera bersedia. Sila pandang skrin.";
+                requestAnimationFrame(scanLoop);
+            };
+        })
+        .catch(err => alert("Kamera gagal diakses."));
+    }
+
+    async function scanLoop() {
+        if (isProcessing) return;
+
+        const video = document.getElementById('video');
+        if (video.videoWidth === 0) {
+            requestAnimationFrame(scanLoop); return;
+        }
+
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+            .withFaceLandmarks().withFaceDescriptor();
+
+        if (detection) {
+            let bestMatchName = "";
+            let lowestDist = 1.0;
+
+            for (let user of registeredUsers) {
+                if (user.descriptors && user.descriptors.length > 0) {
+                    for (let savedDesc of user.descriptors) {
+                        const dist = faceapi.euclideanDistance(detection.descriptor, savedDesc);
+                        if (dist < lowestDist) { lowestDist = dist; bestMatchName = user.name; }
+                    }
+                }
+            }
+
+            if (lowestDist < 0.48) { 
+                isProcessing = true;
+                saveRemoteAttendance(bestMatchName);
+            }
+        }
+        
+        if (!isProcessing) requestAnimationFrame(scanLoop);
+    }
+
+    async function saveRemoteAttendance(name) {
+        document.getElementById('status').innerText = "Menghantar Laporan...";
+        const mapsLink = `https://www.google.com/maps?q=${userLocation.lat},${userLocation.lng}`;
+        
+        try {
+            await addDoc(collection(db, "attendance"), { 
+                name: name, 
+                timestamp: serverTimestamp(), 
+                status: "Tugas Luar",
+                locationLink: mapsLink // Simpan link GPS ke pangkalan data
+            });
+
+            const overlay = document.getElementById('overlay');
+            const overlayText = document.getElementById('overlayText');
+            
+            overlayText.innerHTML = `LAPORAN BERJAYA<br><span style="color:var(--success);">${name}</span><br><br><span style="font-size:1rem; opacity:0.8; font-weight:normal;">Lokasi dan kehadiran Tugas Luar anda telah direkodkan ke sistem.</span>`;
+            overlay.style.display = "flex";
+
+            // Tutup kamera selepas berjaya
+            const video = document.getElementById('video');
+            const stream = video.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+
+        } catch (e) {
+            alert("Ralat menghantar laporan: " + e.message);
+            isProcessing = false;
+        }
+    }
+</script>
+</body>
+</html>
