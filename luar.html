@@ -226,6 +226,13 @@
         window.sahkanYa = () => {
             confirmSection.style.display = "none";
             failCount = 0; // Reset balik jika berjaya
+            
+            // TAMBAHAN BARU: Matikan kamera untuk melancarkan GPS & Firebase
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.style.display = "none"; // Sembunyikan video
+            }
+
             dapatkanGPSdanSimpan(tempDetectedName);
         };
 
