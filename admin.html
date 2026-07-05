@@ -161,15 +161,16 @@
                 <video id="adminVideo" autoplay muted playsinline></video>
                 <div id="regStatus">AI SEDIA</div>
                 
-                <input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
+<input type="text" id="staffName" placeholder="Nama Penuh" class="login-input" style="margin-top:10px;">
                 
-                <select id="staffRole" class="login-input">
-                    <option value="Guru">Jawatan: GURU</option>
-                    <option value="AKP">Jawatan: AKP</option>
-                </select>
+<select id="staffRole" class="login-input">
+    <option value="Guru">Jawatan: GURU</option>
+    <option value="AKP">Jawatan: AKP</option>
+</select>
 
-                <button onclick="register()" class="btn btn-save">SIMPAN IDENTITI (3 SAMPEL)</button>
-                <button onclick="clearAllAttendanceToday()" class="btn" style="width:100%; margin-top:10px; justify-content:center; background: var(--danger); color: white;">🗑️ Kosongkan Kehadiran Hari Ini</button>
+<input type="text" id="staffPinCode" placeholder="Kod Akses Individu (Cth: 1234)" class="login-input">
+
+<button onclick="register()" class="btn btn-save" style="margin-top: 10px;">SIMPAN IDENTITI (3 SAMPEL)</button>
             </div>
 
             <div class="card">
@@ -575,13 +576,18 @@ function checkIsLate(timeStr, role) {
         }
     };
 
-    window.register = async () => {
+window.register = async () => {
         const nameInput = document.getElementById('staffName');
         const roleInput = document.getElementById('staffRole');
+        const pinInput = document.getElementById('staffPinCode'); // Ambil elemen PIN
+        
         const name = nameInput.value.trim().toUpperCase();
         const role = roleInput.value; 
+        const accessCode = pinInput.value.trim(); // Ambil nilai PIN
 
+        // Semakan wajib: Nama dan PIN mesti diisi
         if (!name) return alert("Sila masukkan nama staf!");
+        if (!accessCode) return alert("Sila tetapkan Kod Akses Individu untuk staf ini!");
 
         const statusLabel = document.getElementById('regStatus');
         const video = document.getElementById('adminVideo');
@@ -593,7 +599,7 @@ function checkIsLate(timeStr, role) {
             await new Promise(r => setTimeout(r, 1000));
 
             const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }))
-    .withFaceLandmarks().withFaceDescriptor();
+                .withFaceLandmarks().withFaceDescriptor();
 
             if (det) {
                 descriptors.push({ d: Array.from(det.descriptor) });
@@ -609,20 +615,26 @@ function checkIsLate(timeStr, role) {
             const snap = await getDocs(q);
             
             if (!snap.empty) {
-                if(confirm(`Kemaskini data wajah ${name}?`)) {
-                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors, role: role });
+                if(confirm(`Kemaskini data wajah dan Kod Akses untuk ${name}?`)) {
+                    // Masukkan accessCode ke dalam kemaskini Firebase
+                    await updateDoc(doc(db, "users", snap.docs[0].id), { descriptors, role: role, accessCode: accessCode });
                     alert("Berjaya dikemaskini!");
                 }
             } else {
-                await addDoc(collection(db, "users"), { name, descriptors, role: role });
+                // Masukkan accessCode ke dalam pendaftaran baharu Firebase
+                await addDoc(collection(db, "users"), { name, descriptors, role: role, accessCode: accessCode });
                 alert("Pendaftaran berjaya!");
             }
+            
+            // Kosongkan semula kotak input selepas berjaya
             nameInput.value = "";
+            pinInput.value = "";
+            
         } catch (e) { alert("Ralat Simpan: " + e.message); }
+        
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
-
     window.clearAllAttendanceToday = async () => {
         if (!confirm("AMARAN: Padam SEMUA rekod kehadiran untuk tarikh yang dipilih?")) return;
         const pin = prompt("Sila masukkan PIN Admin untuk pengesahan:");
