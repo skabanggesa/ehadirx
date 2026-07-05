@@ -171,6 +171,9 @@
 <input type="text" id="staffPinCode" placeholder="Kod Akses Individu (Cth: 1234)" class="login-input">
 
 <button onclick="register()" class="btn btn-save" style="margin-top: 10px;">SIMPAN IDENTITI (3 SAMPEL)</button>
+                <button onclick="bulkUpdatePIN()" class="btn" style="margin-top: 15px; background-color: var(--warning); color: black; width: 100%; border-radius: 14px; padding: 10px; font-weight: bold; border: none; cursor: pointer;">
+    ⚠️ SCRIPT SEMENTARA: Set PIN "1122" Untuk Guru Lama
+</button>
             </div>
 
             <div class="card">
@@ -635,6 +638,43 @@ window.register = async () => {
         statusLabel.innerText = "AI SEDIA";
         statusLabel.style.color = "var(--accent)";
     };
+
+    // -- FUNGSI SEMENTARA: KEMASKINI PIN PUKAL --
+    window.bulkUpdatePIN = async () => {
+        // Minta pengesahan pentadbir sebelum jalankan skrip
+        if(!confirm("Adakah anda pasti mahu menetapkan PIN lalai '1122' kepada semua guru yang belum ada PIN?")) return;
+
+        const statusLabel = document.getElementById('regStatus') || document.createElement('div');
+        statusLabel.innerText = "Sistem sedang mengemaskini data... Sila tunggu.";
+        
+        try {
+            // Ambil semua data dari koleksi 'users'
+            const snap = await getDocs(collection(db, "users"));
+            let updateCount = 0;
+            
+            // Semak satu persatu dokumen guru
+            for (const userDoc of snap.docs) {
+                const data = userDoc.data();
+                
+                // Jika guru tersebut TIADA 'accessCode'
+                if (!data.accessCode) {
+                    // Kemaskini dokumen mereka dengan PIN '1122'
+                    await updateDoc(doc(db, "users", userDoc.id), {
+                        accessCode: "1122"
+                    });
+                    updateCount++;
+                }
+            }
+            
+            alert(`Selesai! Sebanyak ${updateCount} guru lama telah berjaya dikemaskini dengan PIN lalai '1122'.`);
+            statusLabel.innerText = "AI SEDIA";
+            
+        } catch (error) {
+            console.error("Ralat bulk update:", error);
+            alert("Ralat semasa mengemaskini: " + error.message);
+        }
+    };
+    
     window.clearAllAttendanceToday = async () => {
         if (!confirm("AMARAN: Padam SEMUA rekod kehadiran untuk tarikh yang dipilih?")) return;
         const pin = prompt("Sila masukkan PIN Admin untuk pengesahan:");
