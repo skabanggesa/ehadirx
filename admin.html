@@ -351,7 +351,7 @@ function checkIsLate(timeStr, role) {
             let masaHTML = "--:--";
             let roleDisplay = user.role || "GURU";
 
-            if (record) {
+if (record) {
                 countHadir++;
                 let timeStr = ""; 
                 if (record.timestamp) {
@@ -377,7 +377,17 @@ function checkIsLate(timeStr, role) {
                     // For dashboard simple stats, we count them as "Hadir" (recorded), but analysis will be deeper.
                 }
 
-                statusHTML = `<span class="tag ${warna}">${stat}</span>`;
+                // ==========================================
+                // TAMBAHAN BAHARU: LOGIK PAUTAN LOKASI PETA
+                // ==========================================
+                let mapButton = "";
+                if (record.locationLink) {
+                    mapButton = `<br><a href="${record.locationLink}" target="_blank" style="font-size: 0.65rem; background: #e0f2fe; color: #0284c7; padding: 3px 6px; border-radius: 4px; text-decoration: none; margin-top: 4px; display: inline-block; font-weight: bold; border: 1px solid #bae6fd;">📍 Lihat Peta</a>`;
+                }
+
+                // Cantumkan tag status dengan butang peta
+                statusHTML = `<span class="tag ${warna}">${stat}</span> ${mapButton}`;
+                // ==========================================
             }
 
             tbody.innerHTML += `
