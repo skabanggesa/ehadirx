@@ -312,12 +312,20 @@
         });
     };
 
-    function checkIsLate(timeStr, role) {
-        const roleUpper = (role || "GURU").toUpperCase(); 
-        let cutoff = "07:10"; 
-        if (roleUpper === "AKP") cutoff = "08:00";
-        return timeStr > cutoff;
-    }
+// ---------------------------------------------------------
+// 1. KONFIGURASI SISTEM (Mudah diedit di sini)
+// ---------------------------------------------------------
+const APP_CONFIG = {
+    waktuLewatGuru: "07:10",
+    waktuLewatAKP: "08:00"
+};
+
+function checkIsLate(timeStr, role) {
+    const roleUpper = (role || "GURU").toUpperCase(); 
+    let cutoff = APP_CONFIG.waktuLewatGuru; 
+    if (roleUpper === "AKP") cutoff = APP_CONFIG.waktuLewatAKP;
+    return timeStr > cutoff;
+}
 
     window.updateDashboard = () => {
         const filterDate = document.getElementById('dateFilter').value;
@@ -675,43 +683,90 @@
         }
     };
 
-    window.openIndividualCalendar = (name) => {
-        currentViewedStaff = name;
-        calDate = new Date();
-        document.getElementById('calStaffName').innerText = name;
-        document.getElementById('calendarModal').style.display = 'flex';
-        renderCalendar();
-    };
+// ---------------------------------------------------------
+// 2. LOGIK KALENDAR YANG TELAH DIPERBAIKI
+// ---------------------------------------------------------
+window.openIndividualCalendar = (name) => {
+    currentViewedStaff = name;
+    calDate = new Date();
+    document.getElementById('calStaffName').innerText = name;
+    document.getElementById('calendarModal').style.display = 'flex';
+    renderCalendarAsync(); // Panggil fungsi async yang baharu
+};
 
-    window.changeMonth = (val) => {
-        calDate.setMonth(calDate.getMonth() + val);
-        renderCalendar();
-    };
+window.changeMonth = (val) => {
+    calDate.setMonth(calDate.getMonth() + val);
+    renderCalendarAsync();
+};
 
-    function renderCalendar() {
-        const year = calDate.getFullYear();
-        const month = calDate.getMonth();
-        const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-        document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
-        const grid = document.getElementById('calendarGrid');
+async function renderCalendarAsync() {
+    const year = calDate.getFullYear();
+    const month = calDate.getMonth();
+    const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+    
+    document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
+    const grid = document.getElementById('calendarGrid');
+    
+    // Tunjukkan status 'loading' sementara mengambil data dari pangkalan data
+    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; font-size: 0.8rem; color: #64748b;">Memuatkan data bulan ini...</div>';
+
+    // 1. Dapatkan tarikh mula dan akhir untuk bulan yang sedang dilihat
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+
+    try {
+        // 2. Tarik semua data kehadiran dalam lingkungan bulan tersebut sahaja
+        const q = query(
+            collection(db, "attendance"),
+            where("timestamp", ">=", Timestamp.fromDate(startDate)),
+            where("timestamp", "<=", Timestamp.fromDate(endDate))
+        );
+
+        const querySnapshot = await getDocs(q);
+        const monthData = {};
+
+        // 3. Tapis data hanya untuk staf yang sedang dilihat secara lokal 
+        // (Ini mengelakkan keperluan membina index (composite index) yang rumit dalam Firebase)
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase() && data.timestamp) {
+                const dateObj = data.timestamp.toDate();
+                // Format kunci tarikh: YYYY-MM-DD
+                const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                monthData[dateKey] = data; 
+            }
+        });
+
+        // 4. Bina UI Kalendar semula
         grid.innerHTML = "";
-        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(d => grid.innerHTML += `<div class="calendar-day-label">${d}</div>`);
+        ["AH", "IS", "SE", "RA", "KH", "JU", "SA"].forEach(d => {
+            grid.innerHTML += `<div class="calendar-day-label">${d}</div>`;
+        });
+        
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
         
         for (let day = 1; day <= daysInMonth; day++) {
             const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const rec = (currentAttendance[key] || []).find(r => r.name.trim().toUpperCase() === currentViewedStaff.trim().toUpperCase());
+            const rec = monthData[key]; // Semak jika ada rekod pada hari ini
+            
             let dot = "";
             if (rec) {
-                if (rec.status.includes("Lewat")) dot = "dot-lewat";
-                else if (rec.status.includes("Hadir")) dot = "dot-hadir";
-                else dot = "dot-cuti";
+                const statusText = rec.status || "";
+                if (statusText.includes("Lewat")) dot = "dot-lewat";
+                else if (statusText.includes("Hadir")) dot = "dot-hadir";
+                else dot = "dot-cuti"; // Untuk status lain seperti MC, CRK, Kursus
             }
             grid.innerHTML += `<div class="calendar-cell">${day}${dot ? `<div class="dot ${dot}"></div>` : ''}</div>`;
         }
+
+    } catch (error) {
+        console.error("Ralat memuatkan kalendar:", error);
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; font-size: 0.8rem; color: var(--danger);">Gagal memuatkan data. Sila cuba lagi.</div>';
     }
+}
 
     window.closeModal = (id) => document.getElementById(id).style.display = 'none';
     window.toggleTheme = () => {
