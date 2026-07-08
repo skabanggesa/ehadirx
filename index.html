@@ -19,9 +19,28 @@
         input { width: 100%; padding: 16px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 1.1rem; text-align: center; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; }
         .overlay { position: fixed; inset: 0; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+
+        /* --- GAYA SLEEP MODE --- */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+        #sleepOverlay {
+            position: fixed; inset: 0; background: #000000; z-index: 999;
+            display: none; flex-direction: column; justify-content: center; align-items: center; 
+            cursor: pointer;
+        }
+        #sleepOverlay img { width: 120px; animation: pulse 3s infinite ease-in-out; margin-bottom: 20px; }
+        #sleepOverlay p { color: #94a3b8; font-size: 1.1rem; font-weight: 600; margin: 0; letter-spacing: 1px; }
     </style>
 </head>
 <body>
+
+    <div id="sleepOverlay" onclick="wakeUp()">
+    <img src="ehadir.png" alt="Logo E-Hadir">
+    <p>Sentuh Skrin Untuk Mula</p>
+</div>
 
 <div id="overlay" class="overlay">
     <div id="overlayIcon" style="font-size: 5rem; margin-bottom: 10px;">✅</div>
@@ -88,6 +107,37 @@
     let wrongMatchCount = 0;
     let pendingName = "";
     const beep = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    // --- PEMBOLEHUBAH & LOGIK SLEEP MODE ---
+    let sleepTimer;
+    let isSleeping = false;
+    const SLEEP_TIMEOUT = 10000; // 10 saat tanpa pergerakan
+
+    window.goToSleep = function() {
+        // Jangan tidur jika di skrin PIN atau sedang memproses wajah
+        if (document.getElementById('pinSection').style.display === "block" || isProcessing) return;
+        
+        isSleeping = true;
+        document.getElementById('sleepOverlay').style.display = "flex";
+    };
+
+    window.wakeUp = function() {
+        if (!isSleeping) return;
+        isSleeping = false;
+        document.getElementById('sleepOverlay').style.display = "none";
+        resetTimer(); // Mula kira 10 saat semula
+    };
+
+    function resetTimer() {
+        clearTimeout(sleepTimer);
+        // Hanya pasang pemasa jika sistem sudah aktif melepasi PIN
+        if (!isSleeping && document.getElementById('pinSection').style.display === "none") {
+            sleepTimer = setTimeout(goToSleep, SLEEP_TIMEOUT);
+        }
+    }
+
+    // Bangunkan sistem jika skrin disentuh
+    window.addEventListener('touchstart', () => { if(isSleeping) wakeUp(); else resetTimer(); });
+    window.addEventListener('click', () => { if(isSleeping) wakeUp(); else resetTimer(); });
 
     async function initSystem() {
         try {
@@ -148,6 +198,7 @@
             video.onloadedmetadata = () => {
                 video.play();
                 document.getElementById('status').innerText = "Kamera bersedia. Mula mengimbas...";
+                resetTimer();
                 requestAnimationFrame(scanLoop);
             };
         })
@@ -158,7 +209,7 @@
 
    async function scanLoop(now) {
         // Jika sedang simpan data (3.5 saat), teruskan putaran kamera tapi jangan scan muka dulu
-        if (isProcessing) {
+        if (isProcessing || isSleeping) {
             requestAnimationFrame(scanLoop);
             return;
         }
@@ -184,6 +235,7 @@
                 .withFaceDescriptor();
             
             if (detection) {
+                resetTimer();
                 let bestMatchName = "Tidak Dikenali";
                 let lowestDist = 1.0;
 
