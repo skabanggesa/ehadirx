@@ -402,7 +402,10 @@ if (record) {
                     <td>${statusHTML}</td>
                     <td style="text-align:right;">
                         <button onclick="openManualModal('${user.name}')" class="btn btn-outline" style="padding:5px 10px; font-size:0.6rem;">Edit</button>
-                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">🗑️</button>
+                        
+                        <button onclick="resetKehadiranBaris('${user.name}')" style="background:none; border:none; cursor:pointer; margin-left:10px; font-size: 1rem;" title="Padam/Reset Kehadiran Hari Ini Sahaja">🔄</button>
+                        
+                        <button onclick="confirmDeleteUser('${user.id}', '${user.name}')" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px; font-size: 1rem;" title="Padam Keseluruhan Akaun">🗑️</button>
                     </td>
                 </tr>`;
         });
@@ -411,6 +414,49 @@ if (record) {
         document.getElementById('statPresent').innerText = countHadir;
         document.getElementById('statLate').innerText = countLewat;
         document.getElementById('statAbsent').innerText = allUsers.length - countHadir;
+    };
+
+    window.resetKehadiranBaris = async (namaGuru) => {
+        if (!confirm(`AMARAN:\nAdakah anda mahu memadam rekod kehadiran untuk [ ${namaGuru} ] pada tarikh yang sedang dipaparkan?`)) return;
+        
+        const pin = prompt("Sila masukkan PIN Admin untuk meneruskan:");
+        if (pin !== ADMIN_PIN) return alert("PIN SALAH! Tindakan dibatalkan.");
+
+        const selectedDate = document.getElementById('dateFilter').value;
+        const startDate = new Date(selectedDate); startDate.setHours(0,0,0,0);
+        const endDate = new Date(selectedDate); endDate.setHours(23,59,59,999);
+
+        try {
+            const q = query(
+                collection(db, "attendance"), 
+                where("timestamp", ">=", Timestamp.fromDate(startDate)), 
+                where("timestamp", "<=", Timestamp.fromDate(endDate)),
+                where("nama", "==", namaGuru)
+            );
+            
+            const snap = await getDocs(q);
+            
+            if (snap.empty) {
+                return alert(`Tiada rekod kehadiran dijumpai untuk ${namaGuru} pada tarikh ini.`);
+            }
+
+            let count = 0;
+            const deletes = [];
+            snap.forEach(d => { 
+                deletes.push(deleteDoc(doc(db, "attendance", d.id))); 
+                count++; 
+            });
+            
+            await Promise.all(deletes);
+            alert(`Berjaya! Rekod kehadiran ${namaGuru} telah di-reset.`);
+            
+            // Tidak perlu panggil updateDashboard() secara manual
+            // kerana onSnapshot (real-time listener) dalam kod cikgu akan update secara automatik!
+            
+        } catch (error) {
+            console.error("Ralat memadam rekod:", error);
+            alert("Ralat berlaku: " + error.message);
+        }
     };
 
 // ==========================================
