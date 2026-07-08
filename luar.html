@@ -109,7 +109,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, serverTimestamp, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyC4vbsw9PPdrSIwiCBg2t1XnkSo2k6aNhg",
@@ -299,23 +299,58 @@
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
                     
+                    // (Saya tolong betulkan sedikit typo pada link asal cikgu supaya map lebih tepat)
                     const mapLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
                     try {
-                        // KEMASKINI BLOK INI
+                        // ==========================================
+                        // SEMAKAN PENDUAAN (DOUBLE ENTRY CHECK)
+                        // ==========================================
+                        const startDate = new Date(); startDate.setHours(0,0,0,0);
+                        const endDate = new Date(); endDate.setHours(23,59,59,999);
+
+                        // Tanya Firebase: Ada tak rekod nama ini pada hari ini?
+                        const q = query(
+                            collection(db, "attendance"),
+                            where("timestamp", ">=", Timestamp.fromDate(startDate)),
+                            where("timestamp", "<=", Timestamp.fromDate(endDate)),
+                            where("name", "==", namaGuru) // Cari guna 'name'
+                        );
+
+                        const snap = await getDocs(q);
+
+                        // JIKA REKOD SUDAH ADA -> Sekat!
+                        if (!snap.empty) {
+                            const rekodLama = snap.docs[0].data();
+                            let masaLama = "awal hari ini";
+                            if (rekodLama.timestamp) {
+                                masaLama = rekodLama.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                            }
+                            
+                            alert(`MAAF: Anda telah pun merekodkan kehadiran pada hari ini jam ${masaLama}.\nUntuk mengelakkan pertindihan data, imbasan ini dibatalkan.`);
+                            statusText.innerText = "Rekod telah wujud. Sila tutup tetingkap ini.";
+                            statusText.style.background = "#fee2e2";
+                            statusText.style.color = "#991b1b";
+                            return; // Berhenti di sini, jangan hantar data!
+                        }
+                        // ==========================================
+
+                        // JIKA TIADA REKOD -> Teruskan simpan
                         await addDoc(collection(db, "attendance"), {
                             name: namaGuru,
-                            status: statusSemasa, // Guna pembolehubah dropdown di sini
+                            status: statusSemasa, 
                             locationLink: mapLink,
                             timestamp: serverTimestamp()
                         });
 
-                        // Mesej berjaya yang dinamis
+                        // Mesej berjaya
                         statusText.innerText = `✅ Selesai! Rekod ${statusSemasa} telah disimpan.`;
                         statusText.style.background = "#d1fae5";
                         statusText.style.color = "#065f46";
+                        
                     } catch (error) {
-                        statusText.innerText = "Ralat pangkalan data!";
+                        console.error(error);
+                        statusText.innerText = "Ralat pangkalan data: " + error.message;
                     }
                 }, (error) => {
                     statusText.innerText = "❌ Sila benarkan akses Lokasi (GPS) pada pelayar bimbit anda.";
